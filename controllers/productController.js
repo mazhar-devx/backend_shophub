@@ -16,7 +16,7 @@ exports.getAllProducts = catchAsync(async (req, res, next) => {
   queryStr = queryStr.replace(/\b(gte|gt|lte|lt)\b/g, match => `$${match}`);
 
   // Only show products with stock > 0
-  let query = Product.find({ ...JSON.parse(queryStr), stock: { $gt: 0 } });
+  let query = Product.find({ ...JSON.parse(queryStr), stock: { $gte: 0 } });
 
   // 3) Search functionality
   if (req.query.search) {
@@ -275,7 +275,7 @@ exports.getCategories = catchAsync(async (req, res, next) => {
 
 // Get trending products (top rated)
 exports.getTrending = catchAsync(async (req, res, next) => {
-  const products = await Product.find({ stock: { $gt: 0 } })
+  const products = await Product.find({ stock: { $gte: 0 } })
     .sort('-ratingsAverage -ratingsQuantity')
     .limit(8);
 
@@ -323,7 +323,7 @@ exports.getRecommendations = catchAsync(async (req, res, next) => {
       const similarProducts = await Product.find({
         category: currentProduct.category,
         _id: { $ne: currentProductId },
-        stock: { $gt: 0 }
+        stock: { $gte: 0 }
       }).limit(4);
       recommendations.push(...similarProducts);
     }
@@ -343,7 +343,7 @@ exports.getRecommendations = catchAsync(async (req, res, next) => {
       const personalRecs = await Product.find({
         category: lastProduct.category,
         _id: { $nin: [...viewedIds, ...existingIds] },
-        stock: { $gt: 0 }
+        stock: { $gte: 0 }
       }).limit(4 - recommendations.length);
 
       recommendations.push(...personalRecs);
@@ -357,7 +357,7 @@ exports.getRecommendations = catchAsync(async (req, res, next) => {
 
     const fallbackRecs = await Product.find({
       _id: { $nin: existingIds },
-      stock: { $gt: 0 }
+      stock: { $gte: 0 }
     })
       .sort('-ratingsAverage -ratingsQuantity')
       .limit(4 - recommendations.length);
