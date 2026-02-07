@@ -30,14 +30,14 @@ const app = express();
 app.set("trust proxy", 1);
 
 /* =====================================================
-   ✅ CORS (FIXES FRONTEND ERRORS)
+   ✅ CORS FIXED (ALLOW PATCH, PUT, DELETE)
 ===================================================== */
 const allowedOrigins = [
-  "https://frontend-shophub.onrender.com",
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-   'https://www.shophub.pro',  // frontend live domain
-  'https://shophub.pro',
+  "http://localhost:5173",       // local dev
+  "http://127.0.0.1:5173",       // local dev alternative
+  "https://frontend-shophub.onrender.com", // previous Render preview
+  "https://www.shophub.pro",     // live frontend
+  "https://shophub.pro",         // root domain (forwarded)
 ];
 
 app.use(
@@ -50,7 +50,7 @@ app.use(
       }
     },
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], // explicitly allow all
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
@@ -62,11 +62,7 @@ app.options("*", cors());
    Middleware order MATTERS
 ===================================================== */
 app.use(cookieParser());
-
-// Security headers (helmet)
 app.use(setSecurityHeaders);
-
-// Rate limiting
 app.use("/api", rateLimiting);
 
 // Body parsers
@@ -81,7 +77,8 @@ app.use(preventParamPollution);
 // Compression
 app.use(compression());
 
-// Static files
+// Serve images & uploads
+app.use("/img/users", express.static(path.join(__dirname, "public/uploads/users")));
 app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
 
 /* =====================================================
