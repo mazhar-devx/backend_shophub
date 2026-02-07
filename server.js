@@ -1,93 +1,127 @@
-const express = require('express');
-const cors = require('cors');
-const dotenv = require('dotenv');
-const compression = require('compression');
-const path = require('path');
-const cookieParser = require('cookie-parser');
-const { setSecurityHeaders, sanitizeNoSQL, sanitizeXSS, preventParamPollution, rateLimiting } = require('./middleware/security');
+const express = require("express");
+const cors = require("cors");
+const dotenv = require("dotenv");
+const compression = require("compression");
+const path = require("path");
+const cookieParser = require("cookie-parser");
 
-// Load environment variables
-dotenv.config({ path: path.resolve(__dirname, 'config.env') });
+// Security middleware
+const {
+  setSecurityHeaders,
+  sanitizeNoSQL,
+  sanitizeXSS,
+  preventParamPollution,
+  rateLimiting,
+} = require("./middleware/security");
 
-const connectDB = require('./config/db');
+// Load env
+dotenv.config({ path: path.resolve(__dirname, "config.env") });
 
-// Handle Database Password logic if needed
-if (process.env.DATABASE && process.env.DATABASE_PASSWORD) {
-  process.env.DATABASE = process.env.DATABASE.replace('<PASSWORD>', process.env.DATABASE_PASSWORD);
-}
-
-// Connect to database
+// DB
+const connectDB = require("./config/db");
 connectDB();
 
-// Create express app
+// App
 const app = express();
 
-// Enable CORS early
-app.use(cors({
-  origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
-  credentials: true
-}));
+/* =====================================================
+   🔥 CRITICAL FOR RENDER + RATE LIMIT
+===================================================== */
+app.set("trust proxy", 1);
 
+/* =====================================================
+   ✅ CORS (FIXES FRONTEND ERRORS)
+===================================================== */
+const allowedOrigins = [
+  "https://frontend-shophub.onrender.com",
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("CORS not allowed"));
+      }
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
+// Handle preflight requests
+app.options("*", cors());
+
+/* =====================================================
+   Middleware order MATTERS
+===================================================== */
 app.use(cookieParser());
 
-// Security Middleware (Headers & Rate Limit) - Can be before body parser
-app.use(setSecurityHeaders); // Helmet
-app.use('/api', rateLimiting); // Rate limiting
+// Security headers (helmet)
+app.use(setSecurityHeaders);
 
-// Serve static files
-app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
+// Rate limiting
+app.use("/api", rateLimiting);
 
-// Body parser - MUST be before sanitization
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// Body parsers
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
-// Data Sanitization - MUST be after body parser
-app.use(sanitizeNoSQL); // Mongo Sanitize
-app.use(sanitizeXSS); // XSS Clean
-app.use(preventParamPollution); // HPP
+// Sanitization
+app.use(sanitizeNoSQL);
+app.use(sanitizeXSS);
+app.use(preventParamPollution);
 
+// Compression
 app.use(compression());
 
-// Routes
-const userRoutes = require('./routes/userRoutes');
-const productRoutes = require('./routes/productRoutes');
-const orderRoutes = require('./routes/orderRoutes');
-const paymentRoutes = require('./routes/paymentRoutes');
-const dashboardRoutes = require('./routes/dashboardRoutes');
-const reviewRoutes = require('./routes/reviewRoutes');
-const marketingRoutes = require('./routes/marketingRoutes');
-const siteSettingsRoutes = require('./routes/siteSettingsRoutes');
+// Static files
+app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
 
-app.use('/api/v1/users', userRoutes);
-app.use('/api/v1/products', productRoutes);
-app.use('/api/v1/orders', orderRoutes);
-app.use('/api/v1/payments', paymentRoutes);
-app.use('/api/v1/dashboard', dashboardRoutes);
-app.use('/api/v1/reviews', reviewRoutes);
-app.use('/api/v1/marketing', marketingRoutes);
-app.use('/api/v1/settings', siteSettingsRoutes);
+/* =====================================================
+   Routes
+===================================================== */
+app.use("/api/v1/users", require("./routes/userRoutes"));
+app.use("/api/v1/products", require("./routes/productRoutes"));
+app.use("/api/v1/orders", require("./routes/orderRoutes"));
+app.use("/api/v1/payments", require("./routes/paymentRoutes"));
+app.use("/api/v1/dashboard", require("./routes/dashboardRoutes"));
+app.use("/api/v1/reviews", require("./routes/reviewRoutes"));
+app.use("/api/v1/marketing", require("./routes/marketingRoutes"));
+app.use("/api/v1/settings", require("./routes/siteSettingsRoutes"));
 
-// Test route
-app.get('/', (req, res) => {
+/* =====================================================
+   Root test
+===================================================== */
+app.get("/", (req, res) => {
   res.status(200).json({
-    status: 'success',
-    message: 'Welcome to the Ultra Advanced E-commerce API',
-    timestamp: new Date().toISOString()
+    status: "success",
+    message: "ShopHub API is running 🚀",
+    time: new Date().toISOString(),
   });
 });
 
-// Global error handler
+/* =====================================================
+   Global error handler
+===================================================== */
 app.use((err, req, res, next) => {
-  console.error('ERROR 💥:', err);
+  console.error("ERROR 💥", err.message);
+
   res.status(err.statusCode || 500).json({
-    status: err.status || 'error',
-    message: err.message || 'Something went wrong!',
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    status: "error",
+    message: err.message || "Internal Server Error",
   });
 });
 
-// Start server
-const port = process.env.PORT || 5000;
-app.listen(port, () => {
-  console.log(`Server running on port ${port} in ${process.env.NODE_ENV} mode`);
+/* =====================================================
+   Start server
+===================================================== */
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
