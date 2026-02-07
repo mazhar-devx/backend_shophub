@@ -36,6 +36,8 @@ const allowedOrigins = [
   "https://frontend-shophub.onrender.com",
   "http://localhost:5173",
   "http://127.0.0.1:5173",
+   'https://www.shophub.pro',  // frontend live domain
+  'https://shophub.pro',
 ];
 
 app.use(
