@@ -19,7 +19,7 @@ dotenv.config({ path: path.resolve(__dirname, "config.env") });
 
 // DB
 const connectDB = require("./config/db");
-connectDB();
+const { ensureAdmin } = require("./utils/ensureAdmin");
 
 // App
 const app = express();
@@ -108,19 +108,33 @@ app.get("/", (req, res) => {
    Global error handler
 ===================================================== */
 app.use((err, req, res, next) => {
+  // Mongoose CastError (e.g. invalid ObjectId like "1") → 400
+  if (err.name === "CastError") {
+    err.statusCode = 400;
+    err.message = "Invalid ID format";
+  }
   console.error("ERROR 💥", err.message);
 
   res.status(err.statusCode || 500).json({
-    status: "error",
+    status: err.status === "fail" ? "fail" : "error",
     message: err.message || "Internal Server Error",
   });
 });
 
 /* =====================================================
-   Start server
+   Start server (after DB connect + ensure admin exists)
 ===================================================== */
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+async function start() {
+  await connectDB();
+  await ensureAdmin();
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
+
+start().catch((err) => {
+  console.error("Startup failed:", err);
+  process.exit(1);
 });
