@@ -28,8 +28,9 @@ router.route('/trending')
 router.route('/search')
   .get(productController.searchProducts);
 
-router.get('/recommendations', authController.protect, productController.getRecommendations);
-router.post('/:id/view', authController.protect, productController.recordView);
+router.get('/recommendations', productController.getRecommendations);
+// router.get('/recommendations', authController.protect, productController.getRecommendations); // Keep protected for now, or check usage
+router.post('/:id/view', productController.recordView);
 
 router.route('/:id')
   .get(productController.getProduct)
