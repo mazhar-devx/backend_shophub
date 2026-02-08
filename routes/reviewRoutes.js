@@ -4,12 +4,13 @@ const authController = require('../controllers/authController');
 
 const router = express.Router({ mergeParams: true });
 
-// Protect all routes after this middleware
+// GET reviews is public (product page); POST/PATCH/DELETE require auth
+router.get('/', reviewController.getAllReviews);
+
 router.use(authController.protect);
 
 router
   .route('/')
-  .get(reviewController.getAllReviews)
   .post(
     authController.restrictTo('user'),
     reviewController.createReview
