@@ -5,10 +5,11 @@ const path = require('path');
 
 dotenv.config({ path: path.resolve(__dirname, 'config.env') });
 
-// Connect to DB
-let DB = process.env.DATABASE;
-if (process.env.DATABASE_PASSWORD) {
-    DB = DB.replace('<PASSWORD>', process.env.DATABASE_PASSWORD);
+// Connect to DB (use MONGO_URI from config.env)
+const DB = process.env.MONGO_URI || process.env.DATABASE;
+if (!DB) {
+    console.error('Missing MONGO_URI or DATABASE in config.env');
+    process.exit(1);
 }
 
 mongoose
