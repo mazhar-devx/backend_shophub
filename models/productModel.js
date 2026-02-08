@@ -33,6 +33,10 @@ const productSchema = new mongoose.Schema({
     trim: true,
     maxlength: [50, 'A product brand must have less than or equal to 50 characters']
   },
+  image: {
+    type: String,
+    required: [true, 'A product must have a main image']
+  },
   images: {
     type: [String],
     required: [true, 'A product must have at least one image'],
