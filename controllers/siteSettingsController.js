@@ -2,11 +2,13 @@ const SiteSettings = require('../models/siteSettingsModel');
 const catchAsync = require('../utils/catchAsync');
 
 exports.getSettings = catchAsync(async (req, res, next) => {
-    let settings = await SiteSettings.findOne();
-    if (!settings) {
-        // Create default if not exists
-        settings = await SiteSettings.create({});
-    }
+    // Ensure we always get/create the SAME document. 
+    // findOneAndUpdate with upsert=true and an empty filter {} is the safest way to ensure a singleton.
+    let settings = await SiteSettings.findOneAndUpdate({}, {}, {
+        new: true,
+        upsert: true,
+        setDefaultsOnInsert: true
+    });
 
     res.status(200).json({
         status: 'success',
@@ -49,15 +51,13 @@ exports.updateSettings = catchAsync(async (req, res, next) => {
         }
     }
 
-    let settings = await SiteSettings.findOne();
-    if (!settings) {
-        settings = await SiteSettings.create(req.body);
-    } else {
-        settings = await SiteSettings.findByIdAndUpdate(settings._id, req.body, {
-            new: true,
-            runValidators: true
-        });
-    }
+    // Update the singleton document
+    const settings = await SiteSettings.findOneAndUpdate({}, req.body, {
+        new: true,
+        upsert: true,
+        runValidators: true,
+        setDefaultsOnInsert: true
+    });
 
     res.status(200).json({
         status: 'success',
