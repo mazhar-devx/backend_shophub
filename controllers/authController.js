@@ -75,6 +75,57 @@ exports.login = async (req, res, next) => {
   createSendToken(user, 200, res);
 };
 
+const { OAuth2Client } = require('google-auth-library');
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+exports.googleLogin = async (req, res, next) => {
+  try {
+    const { token } = req.body;
+
+    // 1. Verify Google Token
+    const ticket = await client.verifyIdToken({
+      idToken: token,
+      audience: process.env.GOOGLE_CLIENT_ID
+    });
+
+    const { name, email, picture } = ticket.getPayload();
+
+    // 2. Check if user exists
+    let user = await User.findOne({ email });
+
+    if (user) {
+      // Update user photo if they don't have one or if it's a google photo (optional strategy)
+      // For now, let's just log them in. 
+      // If you wanted to sync photos: 
+      if (!user.photo || user.photo.startsWith('http')) {
+        user.photo = picture;
+        await user.save({ validateBeforeSave: false });
+      }
+    } else {
+      // 3. Create new user if not exists
+      // Generate a random password since they used Google
+      const randomPassword = crypto.randomBytes(16).toString('hex');
+
+      user = await User.create({
+        name,
+        email,
+        password: randomPassword,
+        passwordConfirm: randomPassword,
+        photo: picture
+      });
+    }
+
+    // 4. Send JWT
+    createSendToken(user, 200, res);
+
+  } catch (err) {
+    res.status(400).json({
+      status: 'fail',
+      message: 'Google Login Failed: ' + err.message
+    });
+  }
+};
+
 exports.logout = (req, res) => {
   res.cookie('jwt', 'loggedout', {
     expires: new Date(Date.now() + 10 * 1000),
