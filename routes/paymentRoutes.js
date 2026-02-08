@@ -9,6 +9,13 @@ router.post('/create-payment-intent', catchAsync(async (req, res, next) => {
   const { amount, currency = 'usd', description = 'E-commerce Purchase' } = req.body;
 
   try {
+    if (!stripe) {
+      return res.status(503).send({
+        status: 'error',
+        error: 'Stripe payments are not configured on the server. Please set STRIPE_SECRET_KEY in config.env.'
+      });
+    }
+
     // Create a PaymentIntent with the order amount and currency
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(amount * 100), // Stripe expects amount in cents
