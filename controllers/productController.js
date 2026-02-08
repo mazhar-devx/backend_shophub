@@ -85,22 +85,27 @@ exports.getProduct = catchAsync(async (req, res, next) => {
 });
 
 exports.createProduct = catchAsync(async (req, res, next) => {
-  // Handle file uploads
+  // 1) Ensure images is an array
+  let images = [];
+
+  // If images (URLs) were provided in req.body
+  if (req.body.images) {
+    images = Array.isArray(req.body.images) ? [...req.body.images] : [req.body.images];
+  }
+
+  // 2) Add uploaded files
   if (req.files && req.files.length > 0) {
     const fileImages = req.files.map(file => `/uploads/${file.filename}`);
-    // If images already exist in body (e.g. URLs), merge them
-    if (req.body.images) {
-      req.body.images = Array.isArray(req.body.images)
-        ? [...req.body.images, ...fileImages]
-        : [req.body.images, ...fileImages];
-    } else {
-      req.body.images = fileImages;
-    }
+    images = [...images, ...fileImages];
+  }
 
-    // Also set main image if not set
-    if (!req.body.image && fileImages.length > 0) {
-      req.body.image = fileImages[0];
-    }
+  // 3) Clean up images (remove any non-string values)
+  images = images.filter(img => typeof img === 'string' && img.length > 0);
+
+  // 4) Set images and main thumbnail
+  req.body.images = images;
+  if (!req.body.image && images.length > 0) {
+    req.body.image = images[0];
   }
 
   const newProduct = await Product.create(req.body);
@@ -114,29 +119,29 @@ exports.createProduct = catchAsync(async (req, res, next) => {
 });
 
 exports.updateProduct = catchAsync(async (req, res, next) => {
-  // Handle file uploads
+  // 1) Handle images - if provided in body, start with those
+  let images = [];
+  if (req.body.images) {
+    images = Array.isArray(req.body.images) ? [...req.body.images] : [req.body.images];
+  } else {
+    // If not in body, we might want to fetch existing, but usually 
+    // the frontend should send existing ones back.
+    // For now, let's at least check if we have files.
+  }
+
+  // 2) Add new uploaded files
   if (req.files && req.files.length > 0) {
     const fileImages = req.files.map(file => `/uploads/${file.filename}`);
-    // If images already exist in body (e.g. URLs), merge them
-    if (req.body.images) {
-      req.body.images = Array.isArray(req.body.images)
-        ? [...req.body.images, ...fileImages]
-        : [req.body.images, ...fileImages];
-    } else {
-      // If we are updating, we might want to keep existing images unless specified otherwise
-      // But here we just add new ones if provided
-      // Logic depends on frontend sending existing images back
-      // For now, let's append
-      // FETCH EXISTING TO APPEND if not in body? 
-      // Safer to just assume body contains what is needed + new files
-      req.body.images = fileImages; // If no body.images, assume replacement or add?
-      // Let's defer to body if present, else just use files
-    }
+    images = [...images, ...fileImages];
+  }
 
-    // ensure array
-    if (req.body.images && !Array.isArray(req.body.images)) {
-      req.body.images = [req.body.images];
-    }
+  // 3) Only update images if we actually have some (prevents overwriting with empty)
+  if (images.length > 0) {
+    images = images.filter(img => typeof img === 'string' && img.length > 0);
+    req.body.images = images;
+
+    // Update main image to the first one
+    req.body.image = images[0];
   }
 
   const product = await Product.findByIdAndUpdate(req.params.id, req.body, {
@@ -173,8 +178,8 @@ exports.deleteProduct = catchAsync(async (req, res, next) => {
 exports.searchProducts = catchAsync(async (req, res, next) => {
   const { q, category, brand, minPrice, maxPrice, sortBy, page = 1, limit = 12 } = req.query;
 
-  // Build search query
-  let searchQuery = {};
+  // Build search query (only in-stock products)
+  let searchQuery = { stock: { $gte: 0 } };
 
   // Text search
   if (q) {
