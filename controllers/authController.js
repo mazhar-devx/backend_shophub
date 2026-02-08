@@ -96,6 +96,7 @@ exports.protect = async (req, res, next) => {
   }
 
   if (!token) {
+    console.log('[Auth] No token found in headers or cookies', req.headers);
     return res.status(401).json({
       status: 'fail',
       message: 'You are not logged in! Please log in to get access.'
@@ -103,28 +104,38 @@ exports.protect = async (req, res, next) => {
   }
 
   // 2) Verification token
-  const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
+  try {
+    const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
 
-  // 3) Check if user still exists
-  const currentUser = await User.findById(decoded.id);
-  if (!currentUser) {
+    // 3) Check if user still exists
+    const currentUser = await User.findById(decoded.id);
+    if (!currentUser) {
+      console.log('[Auth] User no longer exists for ID:', decoded.id);
+      return res.status(401).json({
+        status: 'fail',
+        message: 'The user belonging to this token does no longer exist.'
+      });
+    }
+
+    // 4) Check if user changed password after the token was issued
+    if (currentUser.changedPasswordAfter(decoded.iat)) {
+      console.log('[Auth] User changed password recently');
+      return res.status(401).json({
+        status: 'fail',
+        message: 'User recently changed password! Please log in again.'
+      });
+    }
+
+    // GRANT ACCESS TO PROTECTED ROUTE
+    req.user = currentUser;
+    next();
+  } catch (err) {
+    console.log('[Auth] Token verification failed:', err.message);
     return res.status(401).json({
       status: 'fail',
-      message: 'The user belonging to this token does no longer exist.'
+      message: 'Invalid token'
     });
   }
-
-  // 4) Check if user changed password after the token was issued
-  if (currentUser.changedPasswordAfter(decoded.iat)) {
-    return res.status(401).json({
-      status: 'fail',
-      message: 'User recently changed password! Please log in again.'
-    });
-  }
-
-  // GRANT ACCESS TO PROTECTED ROUTE
-  req.user = currentUser;
-  next();
 };
 
 // Only for rendered pages, no errors!
