@@ -87,14 +87,15 @@ exports.createOrder = catchAsync(async (req, res, next) => {
     orderItems.push({
       product: item.product,
       quantity: item.quantity,
-      price: product.price
+      price: product.price,
+      shippingCost: product.shippingCost || 0,
+      taxPercentage: product.taxPercentage || 0
     });
   }
 
   const newOrder = await Order.create({
     user: req.user.id,
     items: orderItems,
-    shippingAddress,
     shippingAddress,
     paymentMethod
   });
