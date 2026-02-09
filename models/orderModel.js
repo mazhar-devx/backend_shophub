@@ -14,6 +14,14 @@ const orderItemSchema = new mongoose.Schema({
   price: {
     type: Number,
     required: [true, 'Order item must have a price']
+  },
+  shippingCost: {
+    type: Number,
+    default: 0
+  },
+  taxPercentage: {
+    type: Number,
+    default: 0
   }
 });
 
@@ -125,11 +133,15 @@ orderSchema.pre('save', function (next) {
   // Calculate items price
   this.itemsPrice = this.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
-  // Calculate tax (10%)
-  this.taxPrice = this.itemsPrice * 0.1;
+  // Calculate tax from per-item taxPercentage
+  this.taxPrice = this.items.reduce((acc, item) => {
+    return acc + (item.price * item.quantity * ((item.taxPercentage || 0) / 100));
+  }, 0);
 
-  // Shipping is free for orders over $100
-  this.shippingPrice = this.itemsPrice > 100 ? 0 : 10;
+  // Calculate shipping from per-item shippingCost
+  this.shippingPrice = this.items.reduce((acc, item) => {
+    return acc + (item.shippingCost || 0) * item.quantity;
+  }, 0);
 
   // Calculate total price
   this.totalPrice = this.itemsPrice + this.taxPrice + this.shippingPrice;
