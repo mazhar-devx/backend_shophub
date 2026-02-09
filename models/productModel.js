@@ -21,11 +21,7 @@ const productSchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    required: [true, 'A product must have a category'],
-    enum: {
-      values: ['electronics', 'clothing', 'books', 'home', 'beauty', 'sports', 'other'],
-      message: 'Category is either: electronics, clothing, books, home, beauty, sports, other'
-    }
+    required: [true, 'A product must have a category']
   },
   brand: {
     type: String,
@@ -81,7 +77,15 @@ const productSchema = new mongoose.Schema({
   tags: [{
     type: String,
     trim: true
-  }]
+  }],
+  shippingCost: {
+    type: Number,
+    default: 0
+  },
+  taxPercentage: {
+    type: Number,
+    default: 0
+  }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
