@@ -19,6 +19,7 @@ dotenv.config({ path: path.resolve(__dirname, "config.env") });
 
 // DB
 const connectDB = require("./config/db");
+const aiRouter = require('./routes/aiRoutes');
 const { ensureAdmin } = require("./utils/ensureAdmin");
 
 // App
@@ -92,6 +93,7 @@ app.use("/api/v1/dashboard", require("./routes/dashboardRoutes"));
 app.use("/api/v1/reviews", require("./routes/reviewRoutes"));
 app.use("/api/v1/marketing", require("./routes/marketingRoutes"));
 app.use("/api/v1/settings", require("./routes/siteSettingsRoutes"));
+app.use("/api/v1/ai", aiRouter);
 
 /* =====================================================
    Root test
