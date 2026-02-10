@@ -27,6 +27,10 @@ const reviewSchema = new mongoose.Schema({
     type: String,
     enum: ['Pending', 'Approved', 'Rejected'],
     default: 'Pending'
+  },
+  aiReply: {
+    type: String,
+    trim: true
   }
 }, {
   timestamps: true,
