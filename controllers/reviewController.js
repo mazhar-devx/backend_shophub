@@ -1,6 +1,7 @@
 const Review = require('../models/reviewModel');
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
+const aiController = require('./aiController');
 
 // Get all reviews
 exports.getAllReviews = catchAsync(async (req, res, next) => {
@@ -54,6 +55,12 @@ exports.createReview = catchAsync(async (req, res, next) => {
   }
 
   let newReview = await Review.create(req.body);
+
+  // Generate AI Auto-Reply
+  const aiReply = await aiController.generateReviewReply(newReview);
+  newReview.aiReply = aiReply;
+  await newReview.save();
+
   newReview = await newReview.populate({ path: 'user', select: 'name photo' });
 
   res.status(201).json({
