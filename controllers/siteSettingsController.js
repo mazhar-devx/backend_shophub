@@ -23,11 +23,11 @@ exports.updateSettings = catchAsync(async (req, res, next) => {
     if (req.files) {
         if (req.files.heroImage) {
             if (!req.body.hero) req.body.hero = {};
-            req.body.hero.image = `/uploads/${req.files.heroImage[0].filename}`;
+            req.body.hero.image = req.files.heroImage[0].path;
         }
         if (req.files.flashSaleImage) {
             if (!req.body.flashSale) req.body.flashSale = {};
-            req.body.flashSale.image = `/uploads/${req.files.flashSaleImage[0].filename}`;
+            req.body.flashSale.image = req.files.flashSaleImage[0].path;
         }
     }
 
@@ -44,10 +44,10 @@ exports.updateSettings = catchAsync(async (req, res, next) => {
     // So we should re-apply the image path
     if (req.files) {
         if (req.files.heroImage && typeof req.body.hero === 'object') {
-            req.body.hero.image = `/uploads/${req.files.heroImage[0].filename}`;
+            req.body.hero.image = req.files.heroImage[0].path;
         }
         if (req.files.flashSaleImage && typeof req.body.flashSale === 'object') {
-            req.body.flashSale.image = `/uploads/${req.files.flashSaleImage[0].filename}`;
+            req.body.flashSale.image = req.files.flashSaleImage[0].path;
         }
     }
 
