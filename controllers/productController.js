@@ -95,7 +95,7 @@ exports.createProduct = catchAsync(async (req, res, next) => {
 
   // 2) Add uploaded files
   if (req.files && req.files.length > 0) {
-    const fileImages = req.files.map(file => `/uploads/${file.filename}`);
+    const fileImages = req.files.map(file => file.path);
     images = [...images, ...fileImages];
   }
 
@@ -131,7 +131,7 @@ exports.updateProduct = catchAsync(async (req, res, next) => {
 
   // 2) Add new uploaded files
   if (req.files && req.files.length > 0) {
-    const fileImages = req.files.map(file => `/uploads/${file.filename}`);
+    const fileImages = req.files.map(file => file.path);
     images = [...images, ...fileImages];
   }
 
