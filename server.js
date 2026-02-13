@@ -79,8 +79,15 @@ app.use(preventParamPollution);
 app.use(compression());
 
 // Serve images & uploads
-app.use("/img/users", express.static(path.join(__dirname, "public/uploads/users")));
-app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
+const cacheOptions = {
+  maxAge: '7d',
+  setHeaders: (res, path) => {
+    res.setHeader('Cache-Control', 'public, max-age=604800');
+  }
+};
+
+app.use("/img/users", express.static(path.join(__dirname, "public/uploads/users"), cacheOptions));
+app.use("/uploads", express.static(path.join(__dirname, "public/uploads"), cacheOptions));
 
 /* =====================================================
    Routes
