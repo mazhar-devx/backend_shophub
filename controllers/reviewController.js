@@ -2,11 +2,25 @@ const Review = require('../models/reviewModel');
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
 const aiController = require('./aiController');
+const Product = require('../models/productModel'); // Import Product model
 
 // Get all reviews
 exports.getAllReviews = catchAsync(async (req, res, next) => {
   let filter = {};
-  if (req.params.productId) filter = { product: req.params.productId };
+  if (req.params.productId) {
+    let productId = req.params.productId;
+
+    // Check if productId is a valid ObjectId, if not, find product by slug
+    if (!productId.match(/^[0-9a-fA-F]{24}$/)) {
+      const product = await Product.findOne({ slug: productId });
+      if (!product) {
+        return next(new AppError('No product found with that Slug', 404));
+      }
+      productId = product._id;
+    }
+
+    filter = { product: productId };
+  }
 
   const reviews = await Review.find(filter).populate({
     path: 'product',
