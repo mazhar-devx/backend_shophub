@@ -67,13 +67,23 @@ exports.getAllProducts = catchAsync(async (req, res, next) => {
 });
 
 exports.getProduct = catchAsync(async (req, res, next) => {
-  const product = await Product.findById(req.params.id).populate({
+  let query;
+
+  // Check if the param is a valid MongoDB ObjectId
+  if (req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+    query = Product.findById(req.params.id);
+  } else {
+    // If not, assume it's a slug
+    query = Product.findOne({ slug: req.params.id });
+  }
+
+  const product = await query.populate({
     path: 'reviews',
     fields: 'review rating user'
   });
 
   if (!product) {
-    return next(new AppError('No product found with that ID', 404));
+    return next(new AppError('No product found with that ID or Slug', 404));
   }
 
   res.status(200).json({
@@ -106,6 +116,24 @@ exports.createProduct = catchAsync(async (req, res, next) => {
   req.body.images = images;
   if (!req.body.image && images.length > 0) {
     req.body.image = images[0];
+  }
+
+  // 5) Handle stringified JSON (specifications and tags) from FormData
+  if (typeof req.body.specifications === 'string') {
+    try {
+      req.body.specifications = JSON.parse(req.body.specifications);
+    } catch (err) {
+      console.error('Error parsing specifications:', err);
+    }
+  }
+
+  if (typeof req.body.tags === 'string') {
+    try {
+      req.body.tags = JSON.parse(req.body.tags);
+    } catch (err) {
+      // If it's not JSON, it might just be a comma-separated string
+      req.body.tags = req.body.tags.split(',').map(tag => tag.trim());
+    }
   }
 
   const newProduct = await Product.create(req.body);
@@ -142,6 +170,24 @@ exports.updateProduct = catchAsync(async (req, res, next) => {
 
     // Update main image to the first one
     req.body.image = images[0];
+  }
+
+  // 4) Handle stringified JSON (specifications and tags) from FormData
+  if (typeof req.body.specifications === 'string') {
+    try {
+      req.body.specifications = JSON.parse(req.body.specifications);
+    } catch (err) {
+      console.error('Error parsing specifications:', err);
+    }
+  }
+
+  if (typeof req.body.tags === 'string') {
+    try {
+      req.body.tags = JSON.parse(req.body.tags);
+    } catch (err) {
+      // If it's not JSON, it might just be a comma-separated string
+      req.body.tags = req.body.tags.split(',').map(tag => tag.trim());
+    }
   }
 
   const product = await Product.findByIdAndUpdate(req.params.id, req.body, {
