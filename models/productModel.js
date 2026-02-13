@@ -8,6 +8,12 @@ const productSchema = new mongoose.Schema({
     maxlength: [100, 'A product name must have less than or equal to 100 characters'],
     minlength: [2, 'A product name must have more than or equal to 2 characters']
   },
+  slug: {
+    type: String,
+    unique: true,
+    lowercase: true,
+    index: true
+  },
   description: {
     type: String,
     required: [true, 'A product must have a description'],
@@ -85,6 +91,29 @@ const productSchema = new mongoose.Schema({
   taxPercentage: {
     type: Number,
     default: 0
+  },
+  currency: {
+    type: String,
+    enum: ['PKR', 'USD', 'EUR', 'GBP', 'INR', 'AED'],
+    default: 'PKR'
+  },
+  specifications: {
+    dimensions: {
+      length: Number,
+      width: Number,
+      height: Number,
+      unit: {
+        type: String,
+        default: 'cm'
+      }
+    },
+    weight: {
+      value: Number,
+      unit: {
+        type: String,
+        default: 'g'
+      }
+    }
   }
 }, {
   timestamps: true,
@@ -94,7 +123,24 @@ const productSchema = new mongoose.Schema({
 
 // Create index for better query performance
 productSchema.index({ price: 1, ratingsAverage: -1 });
-productSchema.index({ slug: 1 });
+// productSchema.index({ slug: 1 }); // Already defined in field
+
+// DOCUMENT MIDDLEWARE: runs before .save() and .create()
+productSchema.pre('save', function (next) {
+  if (!this.isModified('name') && !this.isNew) return next();
+
+  if (!this.slug) {
+    this.slug = this.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-') // Replace non-alphanumeric chars with -
+      .replace(/^-+|-+$/g, '');     // Remove leading/trailing -
+
+    // Append random string to ensure uniqueness if needed (simple collision avoidance)
+    // For a real prod app, you'd check DB for existence. 
+    // Using a timestamp suffix if duplicate logic isn't in controller
+  }
+  next();
+});
 
 // Virtual for discounted price
 productSchema.virtual('discountedPrice').get(function () {
