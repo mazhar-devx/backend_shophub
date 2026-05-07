@@ -71,8 +71,30 @@ exports.login = async (req, res, next) => {
     });
   }
 
-  // 3) If everything ok, send token to client
-  createSendToken(user, 200, res);
+  // 3) Admin Vendor Isolation / Sub-accounts
+  let loginUser = user;
+
+  if (user.role === 'admin' && req.body.vendorName) {
+    const vendorName = req.body.vendorName.trim();
+    let isolatedUser = await User.findOne({ role: 'admin', vendorName: vendorName });
+
+    if (!isolatedUser) {
+        // Create a new isolated sub-admin account
+        isolatedUser = await User.create({
+            name: `Admin - ${vendorName}`,
+            email: `${vendorName.replace(/\s+/g, '').toLowerCase()}_${Date.now()}@admin.shophub.pro`,
+            password: password, // Dummy password, they authenticate via main account first
+            passwordConfirm: password,
+            role: 'admin',
+            vendorName: vendorName
+        });
+    }
+    // Switch the login target to the isolated sub-account
+    loginUser = isolatedUser;
+  }
+
+  // 4) If everything ok, send token to client
+  createSendToken(loginUser, 200, res);
 };
 
 const { OAuth2Client } = require('google-auth-library');
