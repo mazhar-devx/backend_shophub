@@ -19,7 +19,8 @@ exports.getAllProducts = catchAsync(async (req, res, next) => {
   let filter = { ...JSON.parse(queryStr), stock: { $gte: 0 } };
 
   // VENDOR ISOLATION: If user is admin, they only see their own products
-  if (req.user && req.user.role === 'admin') {
+  // SUPER ADMIN (mazhar.devx) can see everything
+  if (req.user && req.user.role === 'admin' && req.user.vendorName !== 'mazhar.devx') {
     filter.vendor = req.user._id;
   }
 
@@ -226,7 +227,8 @@ exports.updateProduct = catchAsync(async (req, res, next) => {
     return next(new AppError('No product found with that ID', 404));
   }
 
-  if (req.user.role === 'admin' && existingProduct.vendor.toString() !== req.user._id.toString()) {
+  // VENDOR ISOLATION: Check if admin owns this product (Super Admin mazhar.devx bypasses)
+  if (req.user.role === 'admin' && req.user.vendorName !== 'mazhar.devx' && existingProduct.vendor.toString() !== req.user._id.toString()) {
     return next(new AppError('You do not have permission to update this product', 403));
   }
 
@@ -254,7 +256,8 @@ exports.deleteProduct = catchAsync(async (req, res, next) => {
     return next(new AppError('No product found with that ID', 404));
   }
 
-  if (req.user.role === 'admin' && existingProduct.vendor.toString() !== req.user._id.toString()) {
+  // VENDOR ISOLATION: Check if admin owns this product (Super Admin mazhar.devx bypasses)
+  if (req.user.role === 'admin' && req.user.vendorName !== 'mazhar.devx' && existingProduct.vendor.toString() !== req.user._id.toString()) {
     return next(new AppError('You do not have permission to delete this product', 403));
   }
 

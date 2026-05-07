@@ -8,7 +8,8 @@ exports.getAllOrders = catchAsync(async (req, res, next) => {
   let filter = {};
 
   // VENDOR ISOLATION: If user is admin, they only see orders with their products
-  if (req.user && req.user.role === 'admin') {
+  // SUPER ADMIN (mazhar.devx) can see everything
+  if (req.user && req.user.role === 'admin' && req.user.vendorName !== 'mazhar.devx') {
     // 1. Get all products owned by this admin
     const myProducts = await Product.find({ vendor: req.user._id }).select('_id');
     const myProductIds = myProducts.map(p => p._id);
@@ -29,7 +30,8 @@ exports.getAllOrders = catchAsync(async (req, res, next) => {
   let orders = await features.query;
 
   // 3. VENDOR ISOLATION: Filter items in each order to only show what belongs to this admin
-  if (req.user && req.user.role === 'admin') {
+  // SUPER ADMIN (mazhar.devx) sees all items
+  if (req.user && req.user.role === 'admin' && req.user.vendorName !== 'mazhar.devx') {
     orders = orders.map(order => {
       const orderObj = order.toObject();
       orderObj.items = orderObj.items.filter(item => 

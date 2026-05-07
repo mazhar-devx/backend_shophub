@@ -9,7 +9,8 @@ exports.getAllReviews = catchAsync(async (req, res, next) => {
   let filter = {};
 
   // VENDOR ISOLATION: If user is admin, they only see reviews for their products
-  if (req.user && req.user.role === 'admin') {
+  // SUPER ADMIN (mazhar.devx) can see everything
+  if (req.user && req.user.role === 'admin' && req.user.vendorName !== 'mazhar.devx') {
     const myProducts = await Product.find({ vendor: req.user._id }).select('_id');
     const myProductIds = myProducts.map(p => p._id);
     filter = { product: { $in: myProductIds } };

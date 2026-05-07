@@ -28,7 +28,7 @@ exports.updateMe = catchAsync(async (req, res, next) => {
   }
 
   // 2) Filtered out unwanted fields names that are not allowed to be updated
-  const filteredBody = filterObj(req.body, 'name', 'email');
+  const filteredBody = filterObj(req.body, 'name', 'email', 'photo');
   if (req.file) filteredBody.photo = req.file.path;
 
   // 3) Update user document
@@ -129,12 +129,23 @@ exports.getCustomersWithStats = catchAsync(async (req, res, next) => {
 
   // For each user, calculating stats. 
   // NOTE: In production with millions of users, this should be an Aggregation Pipeline on the Orders collection grouping by User.
-  // For now, this is simpler for immediate implementation.
+  // VENDOR ISOLATION (Super Admin mazhar.devx bypasses)
+  const isSuperAdmin = req.user && req.user.role === 'admin' && req.user.vendorName === 'mazhar.devx';
   const Order = require('../models/orderModel');
+  const Product = require('../models/productModel');
 
   const customersWithStats = await Promise.all(users.map(async (user) => {
+    let matchQuery = { user: user._id };
+
+    // If isolated, only count orders that contain this vendor's products
+    if (req.user && req.user.role === 'admin' && !isSuperAdmin) {
+        const myProducts = await Product.find({ vendor: req.user._id }).select('_id');
+        const myProductIds = myProducts.map(p => p._id);
+        matchQuery = { user: user._id, 'items.product': { $in: myProductIds } };
+    }
+
     const stats = await Order.aggregate([
-      { $match: { user: user._id } },
+      { $match: matchQuery },
       {
         $group: {
           _id: '$user',
