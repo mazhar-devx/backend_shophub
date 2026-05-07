@@ -179,11 +179,6 @@ exports.protect = async (req, res, next) => {
 
     // GRANT ACCESS TO PROTECTED ROUTE
     req.user = currentUser;
-
-    // [VENDOR ISOLATION] Extract the custom vendor identifier for shared accounts
-    // This allows multiple admins to share one account but isolate their data by a unique name/ID
-    req.vendorIdentifier = req.headers['x-vendor-identifier'] || null;
-
     next();
   } catch (err) {
     console.log('[Auth] Token verification failed:', err.message);
@@ -374,22 +369,34 @@ exports.updateVendorName = async (req, res, next) => {
       });
     }
 
-    const existing = await User.findOne({ vendorName, _id: { $ne: req.user._id } });
-    if (existing) {
-      return res.status(400).json({
-        status: 'fail',
-        message: 'This vendor name is already taken. Please choose another.'
-      });
+    let isolatedUser = await User.findOne({ role: 'admin', vendorName: vendorName });
+
+    if (!isolatedUser) {
+        // Create a new isolated sub-admin account
+        isolatedUser = await User.create({
+            name: `Admin - ${vendorName}`,
+            email: `${vendorName.replace(/\s+/g, '').toLowerCase()}_${Date.now()}@admin.shophub.pro`,
+            password: 'password123', // Dummy password, they authenticate via main account first
+            passwordConfirm: 'password123',
+            role: 'admin',
+            vendorName: vendorName
+        });
     }
 
-    const user = await User.findByIdAndUpdate(req.user._id, { vendorName }, {
-      new: true,
-      runValidators: true
-    });
+    // Generate a new token for this isolated user
+    const jwt = require('jsonwebtoken');
+    const signToken = id => {
+        return jwt.sign({ id }, process.env.JWT_SECRET, {
+            expiresIn: process.env.JWT_EXPIRES_IN
+        });
+    };
+
+    const token = signToken(isolatedUser._id);
 
     res.status(200).json({
       status: 'success',
-      data: { user }
+      token,
+      data: { user: isolatedUser }
     });
   } catch (err) {
     res.status(400).json({

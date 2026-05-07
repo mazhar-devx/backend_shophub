@@ -130,7 +130,7 @@ exports.getCustomersWithStats = catchAsync(async (req, res, next) => {
   // For each user, calculating stats. 
   // NOTE: In production with millions of users, this should be an Aggregation Pipeline on the Orders collection grouping by User.
   // VENDOR ISOLATION (Super Admin mazhar.devx bypasses)
-  const isSuperAdmin = req.vendorIdentifier === 'mazhar.devx';
+  const isSuperAdmin = req.user && req.user.role === 'admin' && req.user.vendorName === 'mazhar.devx';
   const Order = require('../models/orderModel');
   const Product = require('../models/productModel');
 
@@ -139,7 +139,7 @@ exports.getCustomersWithStats = catchAsync(async (req, res, next) => {
 
     // If isolated, only count orders that contain this vendor's products
     if (req.user && req.user.role === 'admin' && !isSuperAdmin) {
-        const myProducts = await Product.find({ vendor: req.vendorIdentifier || "NO_ACCESS_IDENTIFIER" }).select('_id');
+        const myProducts = await Product.find({ vendor: req.user._id }).select('_id');
         const myProductIds = myProducts.map(p => p._id);
         matchQuery = { user: user._id, 'items.product': { $in: myProductIds } };
     }

@@ -50,13 +50,10 @@ const reviewSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
-// Prevent duplicate reviews from the same user for the same product
-// We only enforce uniqueness for real reviews (isDummy: false)
-reviewSchema.index({ product: 1, user: 1 }, { 
-  unique: true, 
-  partialFilterExpression: { isDummy: false },
-  name: 'review_unique_real_users' 
-});
+// Create index for better query performance
+// We no longer enforce uniqueness at the DB level to allow multiple AI dummy reviews.
+// Uniqueness for real users is handled in the reviewController.
+reviewSchema.index({ product: 1, user: 1 });
 // Also add an index for dummy reviews to avoid any implicit collisions if needed, 
 // but the main goal is to let dummy reviews coexist with the same product ID.
 

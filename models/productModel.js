@@ -124,8 +124,9 @@ const productSchema = new mongoose.Schema({
     }
   },
   vendor: {
-    type: String,
-    required: [true, 'A product must belong to a vendor (admin identifier)']
+    type: mongoose.Schema.ObjectId,
+    ref: 'User',
+    required: [true, 'A product must belong to a vendor (admin)']
   }
 }, {
   timestamps: true,
@@ -142,7 +143,10 @@ productSchema.pre('save', async function () {
   if (!this.isModified('name') && !this.isModified('slug') && !this.isNew) return;
 
   // If slug is not provided or name is modified, generate/regenerate slug
-  let slugBase = (this.slug || this.name)
+  const baseString = this.slug || this.name;
+  if (!baseString) return; // Prevent crashes if name is missing during early hooks
+  
+  let slugBase = baseString.toString()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-') // Replace non-alphanumeric chars with -
     .replace(/^-+|-+$/g, '');     // Remove leading/trailing -

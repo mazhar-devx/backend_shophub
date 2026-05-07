@@ -11,13 +11,12 @@ exports.getDashboardStats = catchAsync(async (req, res, next) => {
         let myProductIds = [];
 
         // VENDOR ISOLATION (Super Admin mazhar.devx bypasses)
-        const isSuperAdmin = req.vendorIdentifier === 'mazhar.devx';
+        const isSuperAdmin = req.user && req.user.role === 'admin' && req.user.vendorName === 'mazhar.devx';
 
         if (req.user && req.user.role === 'admin' && !isSuperAdmin) {
-            const vendorId = req.vendorIdentifier || "NO_ACCESS_IDENTIFIER";
-            const myProducts = await Product.find({ vendor: vendorId }).select('_id');
+            const myProducts = await Product.find({ vendor: req.user._id }).select('_id');
             myProductIds = myProducts.map(p => p._id);
-            productFilter = { vendor: vendorId };
+            productFilter = { vendor: req.user._id };
             orderFilter = { 'items.product': { $in: myProductIds } };
         }
 
@@ -56,7 +55,7 @@ exports.getDashboardStats = catchAsync(async (req, res, next) => {
         if (req.user && req.user.role === 'admin' && !isSuperAdmin) {
             recentOrders = recentOrders.map(order => {
                 const o = order.toObject();
-                o.items = o.items.filter(item => item.product && String(item.product.vendor) === String(req.vendorIdentifier));
+                o.items = o.items.filter(item => item.product && item.product.vendor && item.product.vendor.toString() === req.user._id.toString());
                 o.totalPrice = o.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
                 return o;
             });

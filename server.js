@@ -20,6 +20,7 @@ dotenv.config({ path: path.resolve(__dirname, "config.env") });
 // DB
 const connectDB = require("./config/db");
 const aiRouter = require('./routes/aiRoutes');
+const { ensureAdmin } = require("./utils/ensureAdmin");
 
 // App
 const app = express();
@@ -37,24 +38,32 @@ const allowedOrigins = [
   "http://127.0.0.1:5173",       // local dev alternative
   "https://frontend-shophub.onrender.com", // previous Render preview
   "https://www.shophub.pro",     // live frontend
-  "https://shophub.pro",         // live frontend (non-www)
-  "https://backendshophub-production.up.railway.app", // backend itself
+  "https://shophub.pro",         // root domain (forwarded)
+  "https://frontend-shophub.vercel.app", // vercel frontend (short)
+  "https://frontend-shophub-cdm960uml-mazhar-devxs-projects.vercel.app", // vercel generated
 ];
 
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "X-Vendor-Identifier"],
-}));
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (
+        !origin || 
+        allowedOrigins.includes(origin) || 
+        origin.endsWith('.vercel.app') || 
+        origin.endsWith('.shophub.pro')
+      ) {
+        callback(null, true);
+      } else {
+        callback(new Error("CORS not allowed"));
+      }
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], // explicitly allow all
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 
-// Pre-flight
+// Handle preflight requests
 app.options("*", cors());
 
 /* =====================================================
@@ -106,50 +115,47 @@ app.use("/api/v1/sitemap.xml", require("./routes/sitemapRoutes"));
 ===================================================== */
 app.get("/", (req, res) => {
   res.status(200).json({
-    message: "ShopHub API is running smoothly! 🔥",
-    version: "1.0.0",
-    owner: "mazhar.devx"
+    status: "success",
+    message: "ShopHub API is running 🚀",
+    time: new Date().toISOString(),
   });
 });
 
 /* =====================================================
-   404 Handler
-===================================================== */
-app.all("*", (req, res, next) => {
-  res.status(404).json({
-    status: "fail",
-    message: `Can't find ${req.originalUrl} on this server!`
-  });
-});
-
-/* =====================================================
-   GLOBAL ERROR HANDLER
+   Global error handler
 ===================================================== */
 app.use((err, req, res, next) => {
-  err.statusCode = err.statusCode || 500;
-  err.status = err.status || "error";
+  // Mongoose CastError (e.g. invalid ObjectId like "1") → 400
+  if (err.name === "CastError") {
+    err.statusCode = 400;
+    err.message = "Invalid ID format";
+  }
 
-  console.error("ERROR 💥", err); // Log full error object for better debugging
+  // Mongoose Duplicate Key Error → 400
+  if (err.code === 11000) {
+    err.statusCode = 400;
+    const field = Object.keys(err.keyValue || {})[0] || 'field';
+    err.message = `Duplicate value for ${field}. Please use another one!`;
+  }
 
-  res.status(err.statusCode).json({
-    status: err.status,
+  console.error("ERROR 💥", err.message);
+
+  res.status(err.statusCode || 500).json({
+    status: (err.statusCode && err.statusCode.toString().startsWith('4')) ? "fail" : "error",
     message: err.message || "Internal Server Error",
-    stack: process.env.NODE_ENV === "development" ? err.stack : undefined
   });
 });
 
 /* =====================================================
-   Start server
+   Start server (after DB connect + ensure admin exists)
 ===================================================== */
 const PORT = process.env.PORT || 5005;
-
-async function startServer() {
+const server = app.listen(PORT, async () => {
+  console.log(`Server running on port ${PORT} 🚀`);
+  
+  // Ensure we have at least one admin
   try {
-    // 1. Connect to Database
     await connectDB();
-    console.log("Database connection successful! 📁");
-
-    // 2. Ensure default admin exists
     const User = require("./models/userModel");
     const admin = await User.findOne({ role: "admin" });
     if (!admin) {
@@ -164,7 +170,7 @@ async function startServer() {
       console.log("Default admin created: admin@shophub.pro / password123");
     }
 
-    // 3. Drop troublesome review index
+    // [FIX] Drop old review index to ensure partialFilterExpression takes effect
     try {
         const Review = require("./models/reviewModel");
         await Review.collection.dropIndex("product_1_user_1");
@@ -173,15 +179,7 @@ async function startServer() {
         // Index might not exist or already dropped
     }
 
-    // 4. Start Listening
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT} 🚀`);
-    });
-
   } catch (err) {
-    console.error("Initialization Error:", err);
-    process.exit(1);
+    console.error("Initialization Error:", err.message);
   }
-}
-
-startServer();
+});
