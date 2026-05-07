@@ -179,6 +179,11 @@ exports.protect = async (req, res, next) => {
 
     // GRANT ACCESS TO PROTECTED ROUTE
     req.user = currentUser;
+
+    // [VENDOR ISOLATION] Extract the custom vendor identifier for shared accounts
+    // This allows multiple admins to share one account but isolate their data by a unique name/ID
+    req.vendorIdentifier = req.headers['x-vendor-identifier'] || null;
+
     next();
   } catch (err) {
     console.log('[Auth] Token verification failed:', err.message);

@@ -124,9 +124,8 @@ const productSchema = new mongoose.Schema({
     }
   },
   vendor: {
-    type: mongoose.Schema.ObjectId,
-    ref: 'User',
-    required: [true, 'A product must belong to a vendor (admin)']
+    type: String,
+    required: [true, 'A product must belong to a vendor (admin identifier)']
   }
 }, {
   timestamps: true,

@@ -9,9 +9,9 @@ exports.getAllOrders = catchAsync(async (req, res, next) => {
 
   // VENDOR ISOLATION: If user is admin, they only see orders with their products
   // SUPER ADMIN (mazhar.devx) can see everything
-  if (req.user && req.user.role === 'admin' && req.user.vendorName !== 'mazhar.devx') {
-    // 1. Get all products owned by this admin
-    const myProducts = await Product.find({ vendor: req.user._id }).select('_id');
+  if (req.user && req.user.role === 'admin' && req.vendorIdentifier !== 'mazhar.devx') {
+    // 1. Get all products owned by this admin identifier
+    const myProducts = await Product.find({ vendor: req.vendorIdentifier }).select('_id');
     const myProductIds = myProducts.map(p => p._id);
 
     // 2. Filter orders that contain at least one of these products
@@ -31,14 +31,14 @@ exports.getAllOrders = catchAsync(async (req, res, next) => {
 
   // 3. VENDOR ISOLATION: Filter items in each order to only show what belongs to this admin
   // SUPER ADMIN (mazhar.devx) sees all items
-  if (req.user && req.user.role === 'admin' && req.user.vendorName !== 'mazhar.devx') {
+  if (req.user && req.user.role === 'admin' && req.vendorIdentifier !== 'mazhar.devx') {
     orders = orders.map(order => {
       const orderObj = order.toObject();
       orderObj.items = orderObj.items.filter(item => 
-        item.product && item.product.vendor && item.product.vendor.toString() === req.user._id.toString()
+        item.product && item.product.vendor === req.vendorIdentifier
       );
       
-      // Recalculate totalPrice for this vendor's view (optional, but makes sense)
+      // Recalculate totalPrice for this vendor's view
       orderObj.totalPrice = orderObj.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
       
       return orderObj;

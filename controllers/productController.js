@@ -20,8 +20,8 @@ exports.getAllProducts = catchAsync(async (req, res, next) => {
 
   // VENDOR ISOLATION: If user is admin, they only see their own products
   // SUPER ADMIN (mazhar.devx) can see everything
-  if (req.user && req.user.role === 'admin' && req.user.vendorName !== 'mazhar.devx') {
-    filter.vendor = req.user._id;
+  if (req.user && req.user.role === 'admin' && req.vendorIdentifier !== 'mazhar.devx') {
+    filter.vendor = req.vendorIdentifier;
   }
 
   let query = Product.find(filter);
@@ -154,8 +154,8 @@ exports.createProduct = catchAsync(async (req, res, next) => {
     }
   }
 
-  // VENDOR ISOLATION: Associate product with the logged-in admin
-  req.body.vendor = req.user._id;
+  // VENDOR ISOLATION: Associate product with the unique vendor identifier (shared admin support)
+  req.body.vendor = req.vendorIdentifier;
 
   const newProduct = await Product.create(req.body);
 
@@ -228,7 +228,7 @@ exports.updateProduct = catchAsync(async (req, res, next) => {
   }
 
   // VENDOR ISOLATION: Check if admin owns this product (Super Admin mazhar.devx bypasses)
-  if (req.user.role === 'admin' && req.user.vendorName !== 'mazhar.devx' && existingProduct.vendor.toString() !== req.user._id.toString()) {
+  if (req.user.role === 'admin' && req.vendorIdentifier !== 'mazhar.devx' && existingProduct.vendor !== req.vendorIdentifier) {
     return next(new AppError('You do not have permission to update this product', 403));
   }
 
@@ -257,7 +257,7 @@ exports.deleteProduct = catchAsync(async (req, res, next) => {
   }
 
   // VENDOR ISOLATION: Check if admin owns this product (Super Admin mazhar.devx bypasses)
-  if (req.user.role === 'admin' && req.user.vendorName !== 'mazhar.devx' && existingProduct.vendor.toString() !== req.user._id.toString()) {
+  if (req.user.role === 'admin' && req.vendorIdentifier !== 'mazhar.devx' && existingProduct.vendor !== req.vendorIdentifier) {
     return next(new AppError('You do not have permission to delete this product', 403));
   }
 
