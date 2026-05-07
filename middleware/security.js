@@ -25,7 +25,8 @@ exports.preventParamPollution = hpp({
 // Set security HTTP headers
 // Set security HTTP headers
 exports.setSecurityHeaders = helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" }
 });
 
 // Rate limiting

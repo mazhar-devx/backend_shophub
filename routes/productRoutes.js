@@ -13,7 +13,7 @@ router.route('/')
   .post(
     authController.protect,
     authController.restrictTo('admin'),
-    upload.array('images', 5),
+    upload.fields([{ name: 'images', maxCount: 5 }, { name: 'videoFile', maxCount: 1 }]),
     productController.createProduct
   );
 
@@ -37,7 +37,7 @@ router.route('/:id')
   .patch(
     authController.protect,
     authController.restrictTo('admin'),
-    upload.array('images', 5),
+    upload.fields([{ name: 'images', maxCount: 5 }, { name: 'videoFile', maxCount: 1 }]),
     productController.updateProduct
   )
   .delete(

@@ -42,12 +42,11 @@ const reviewSchema = new mongoose.Schema({
 reviewSchema.index({ product: 1, user: 1 }, { unique: true });
 
 // Populate user references
-reviewSchema.pre(/^find/, function (next) {
+reviewSchema.pre(/^find/, function () {
   this.populate({
     path: 'user',
     select: 'name photo'
   });
-  next();
 });
 
 // Calculate average ratings for a product

@@ -104,9 +104,19 @@ exports.createProduct = catchAsync(async (req, res, next) => {
   }
 
   // 2) Add uploaded files
-  if (req.files && req.files.length > 0) {
-    const fileImages = req.files.map(file => file.path);
+  if (req.files && req.files.images && req.files.images.length > 0) {
+    const fileImages = req.files.images.map(file => file.path);
     images = [...images, ...fileImages];
+  }
+  
+  // 2.5) Add uploaded video file
+  if (req.files && req.files.videoFile && req.files.videoFile.length > 0) {
+    req.body.video = req.files.videoFile[0].path;
+  }
+  
+  // Also handle videoUrl if provided in body (frontend will send videoUrl)
+  if (req.body.videoUrl) {
+    req.body.video = req.body.videoUrl;
   }
 
   // 3) Clean up images (remove any non-string values)
@@ -158,9 +168,19 @@ exports.updateProduct = catchAsync(async (req, res, next) => {
   }
 
   // 2) Add new uploaded files
-  if (req.files && req.files.length > 0) {
-    const fileImages = req.files.map(file => file.path);
+  if (req.files && req.files.images && req.files.images.length > 0) {
+    const fileImages = req.files.images.map(file => file.path);
     images = [...images, ...fileImages];
+  }
+
+  // 2.5) Add uploaded video file
+  if (req.files && req.files.videoFile && req.files.videoFile.length > 0) {
+    req.body.video = req.files.videoFile[0].path;
+  }
+
+  // Also handle videoUrl if provided in body
+  if (req.body.videoUrl) {
+    req.body.video = req.body.videoUrl;
   }
 
   // 3) Only update images if we actually have some (prevents overwriting with empty)
@@ -343,6 +363,16 @@ exports.getTrending = catchAsync(async (req, res, next) => {
 exports.recordView = catchAsync(async (req, res, next) => {
   // Only if user is logged in
   if (req.user) {
+    let productId = req.params.id;
+    if (productId && !productId.match(/^[0-9a-fA-F]{24}$/)) {
+        const product = await require('../models/productModel').findOne({ slug: productId });
+        if (product) {
+            productId = product._id.toString();
+        } else {
+            return res.status(200).json({ status: 'success' }); // Ignore view if product doesn't exist
+        }
+    }
+
     // Add to user history if not recently viewed (simple push for now)
     // We could use $addToSet but we want to track recency, so let's push and maybe trim later
     // Or updated "last viewed" if exists.
@@ -352,7 +382,7 @@ exports.recordView = catchAsync(async (req, res, next) => {
     await require('../models/userModel').findByIdAndUpdate(req.user._id, {
       $push: {
         viewedProducts: {
-          $each: [{ product: req.params.id, date: Date.now() }],
+          $each: [{ product: productId, date: Date.now() }],
           $slice: -50 // Keep last 50
         }
       }
@@ -364,8 +394,17 @@ exports.recordView = catchAsync(async (req, res, next) => {
 // Get Recommendations
 exports.getRecommendations = catchAsync(async (req, res, next) => {
   let recommendations = [];
-  const currentProductId = req.query.currentId;
+  let currentProductId = req.query.currentId;
   const Product = require('../models/productModel'); // Ensure definition
+
+  if (currentProductId && !currentProductId.match(/^[0-9a-fA-F]{24}$/)) {
+      const product = await Product.findOne({ slug: currentProductId });
+      if (product) {
+          currentProductId = product._id.toString();
+      } else {
+          currentProductId = null;
+      }
+  }
 
   // Strategy 1: Contextual (Similar to current product)
   if (currentProductId) {

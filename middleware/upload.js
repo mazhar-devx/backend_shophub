@@ -7,17 +7,18 @@ const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
     params: {
         folder: 'shophub_products', // Folder name in Cloudinary
-        allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+        allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'mp4', 'webm', 'mov'],
+        resource_type: 'auto'
         // transformation: [{ width: 1000, height: 1000, crop: 'limit' }] // REMOVED to allow full quality
     }
 });
 
-// File filter (Images only)
+// File filter (Images & Videos)
 const fileFilter = (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
+    if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) {
         cb(null, true);
     } else {
-        cb(new Error('Not an image! Please upload only images.'), false);
+        cb(new Error('Not an image or video! Please upload only images or videos.'), false);
     }
 };
 

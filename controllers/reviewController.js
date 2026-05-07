@@ -58,6 +58,15 @@ exports.createReview = catchAsync(async (req, res, next) => {
   if (!req.body.product) req.body.product = req.params.productId;
   if (!req.body.user) req.body.user = req.user.id;
 
+  // Check if product is a valid ObjectId, if not, find product by slug
+  if (req.body.product && !req.body.product.match(/^[0-9a-fA-F]{24}$/)) {
+    const product = await Product.findOne({ slug: req.body.product });
+    if (!product) {
+      return next(new AppError('No product found with that Slug', 404));
+    }
+    req.body.product = product._id.toString();
+  }
+
   // Check if user has already reviewed this product
   const existingReview = await Review.findOne({
     product: req.body.product,

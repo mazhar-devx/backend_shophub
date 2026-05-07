@@ -119,17 +119,16 @@ const orderSchema = new mongoose.Schema({
 });
 
 // Populate user and product references
-orderSchema.pre(/^find/, function (next) {
+orderSchema.pre(/^find/, function () {
   this.populate('user', 'name email')
     .populate({
       path: 'items.product',
       select: 'name price images'
     });
-  next();
 });
 
 // Calculate total price before saving
-orderSchema.pre('save', function (next) {
+orderSchema.pre('save', function () {
   // Calculate items price
   this.itemsPrice = this.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
@@ -145,8 +144,6 @@ orderSchema.pre('save', function (next) {
 
   // Calculate total price
   this.totalPrice = this.itemsPrice + this.taxPrice + this.shippingPrice;
-
-  next();
 });
 
 const Order = mongoose.model('Order', orderSchema);

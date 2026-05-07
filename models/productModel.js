@@ -49,6 +49,14 @@ const productSchema = new mongoose.Schema({
       message: 'A product must have at least one image'
     }
   },
+  video: {
+    type: String
+  },
+  posterType: {
+    type: String,
+    enum: ['image', 'video', 'none'],
+    default: 'image'
+  },
   ratingsAverage: {
     type: Number,
     default: 0,
@@ -126,8 +134,8 @@ productSchema.index({ price: 1, ratingsAverage: -1 });
 // productSchema.index({ slug: 1 }); // Already defined in field
 
 // DOCUMENT MIDDLEWARE: runs before .save() and .create()
-productSchema.pre('save', function (next) {
-  if (!this.isModified('name') && !this.isNew) return next();
+productSchema.pre('save', function () {
+  if (!this.isModified('name') && !this.isNew) return;
 
   if (!this.slug) {
     this.slug = this.name
@@ -139,7 +147,6 @@ productSchema.pre('save', function (next) {
     // For a real prod app, you'd check DB for existence. 
     // Using a timestamp suffix if duplicate logic isn't in controller
   }
-  next();
 });
 
 // Virtual for discounted price

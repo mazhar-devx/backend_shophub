@@ -39,12 +39,19 @@ const allowedOrigins = [
   "https://frontend-shophub.onrender.com", // previous Render preview
   "https://www.shophub.pro",     // live frontend
   "https://shophub.pro",         // root domain (forwarded)
+  "https://frontend-shophub.vercel.app", // vercel frontend (short)
+  "https://frontend-shophub-cdm960uml-mazhar-devxs-projects.vercel.app", // vercel generated
 ];
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (
+        !origin || 
+        allowedOrigins.includes(origin) || 
+        origin.endsWith('.vercel.app') || 
+        origin.endsWith('.shophub.pro')
+      ) {
         callback(null, true);
       } else {
         callback(new Error("CORS not allowed"));
