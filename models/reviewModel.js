@@ -21,7 +21,19 @@ const reviewSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.ObjectId,
     ref: 'User',
-    required: [true, 'Review must belong to a user']
+    required: function() { return !this.isDummy; }
+  },
+  isDummy: {
+    type: Boolean,
+    default: false
+  },
+  dummyName: {
+    type: String,
+    trim: true
+  },
+  dummyPhoto: {
+    type: String,
+    default: 'https://cdn-icons-png.flaticon.com/512/149/149071.png'
   },
   status: {
     type: String,
@@ -39,7 +51,10 @@ const reviewSchema = new mongoose.Schema({
 });
 
 // Prevent duplicate reviews from the same user for the same product
-reviewSchema.index({ product: 1, user: 1 }, { unique: true });
+reviewSchema.index({ product: 1, user: 1 }, { 
+  unique: true, 
+  partialFilterExpression: { isDummy: false } 
+});
 
 // Populate user references
 reviewSchema.pre(/^find/, function () {

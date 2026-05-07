@@ -152,3 +152,66 @@ exports.generateReviewReply = async (reviewDoc) => {
     }
 };
 
+// Generate Bulk Fake Reviews for Admin
+exports.generateBulkReviews = catchAsync(async (req, res, next) => {
+    const { productId, count, prompt } = req.body;
+    
+    if (!productId || !count) {
+        return res.status(400).json({ status: 'error', message: 'Provide productId and count' });
+    }
+    
+    const product = await Product.findById(productId);
+    if (!product) {
+        return res.status(404).json({ status: 'error', message: 'Product not found' });
+    }
+    
+    const Review = require('../models/reviewModel');
+    
+    const systemPrompt = `You are a professional review generator. Generate ${Math.min(count, 20)} ULTA-REALISTIC, DISTINCT, and UNIQUE customer reviews for the following product:
+    
+    PRODUCT: ${product.name}
+    DESCRIPTION: ${product.description}
+    ADMIN INSTRUCTIONS: ${prompt || 'Generate high-quality positive reviews.'}
+    
+    CRITICAL RULES:
+    1. NAMES: Use a diverse mix of names (mix of common Pakistani names and international names if applicable). NO DUPLICATES.
+    2. CONTENT: Each review text must be unique. Vary the tone, length, and specific details mentioned. Some should be short, some longer. Mention specific features from the description.
+    3. JSON: Return ONLY a raw valid JSON array. No markdown. No text before or after.
+    
+    Each object keys:
+    "name": "Full name",
+    "review": "Review text",
+    "rating": number (3-5)
+    `;
+
+    try {
+        const messages = [{ role: "system", content: systemPrompt }];
+        const responseText = await callGroq(messages);
+        
+        const cleanedText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+        const generatedReviews = JSON.parse(cleanedText);
+        
+        const reviewsToInsert = generatedReviews.map((rev, index) => ({
+            product: productId,
+            isDummy: true,
+            dummyName: rev.name,
+            // Use a better, more reliable random avatar service with unique seeds
+            dummyPhoto: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(rev.name + index)}&backgroundColor=b6e3f4,c0aede,d1d4f9`,
+            review: rev.review,
+            rating: rev.rating,
+            status: 'Approved'
+        }));
+
+        await Review.insertMany(reviewsToInsert);
+        
+        res.status(200).json({
+            status: 'success',
+            message: `Successfully generated and inserted ${reviewsToInsert.length} reviews.`,
+        });
+        
+    } catch (err) {
+        console.error("Bulk AI Review Error:", err);
+        return res.status(500).json({ status: 'error', message: 'Failed to generate AI reviews: ' + err.message });
+    }
+});
+

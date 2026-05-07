@@ -351,3 +351,45 @@ exports.updatePassword = async (req, res, next) => {
   // 4) Log user in, send JWT
   createSendToken(user, 200, res);
 };
+
+exports.updateVendorName = async (req, res, next) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        status: 'fail',
+        message: 'Only admins can set a vendor name'
+      });
+    }
+
+    const { vendorName } = req.body;
+    if (!vendorName) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Please provide a vendor name'
+      });
+    }
+
+    const existing = await User.findOne({ vendorName, _id: { $ne: req.user._id } });
+    if (existing) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'This vendor name is already taken. Please choose another.'
+      });
+    }
+
+    const user = await User.findByIdAndUpdate(req.user._id, { vendorName }, {
+      new: true,
+      runValidators: true
+    });
+
+    res.status(200).json({
+      status: 'success',
+      data: { user }
+    });
+  } catch (err) {
+    res.status(400).json({
+      status: 'fail',
+      message: err.message
+    });
+  }
+};

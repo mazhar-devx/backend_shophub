@@ -16,6 +16,7 @@ router.patch('/resetPassword/:token', authController.resetPassword);
 router.use(authController.protect);
 
 router.patch('/updateMyPassword', authController.updatePassword);
+router.patch('/updateVendorName', authController.updateVendorName);
 router.get('/me', userController.getMe, userController.getUser);
 const { uploadUserPhoto } = require('../middleware/uploadMiddleware');
 

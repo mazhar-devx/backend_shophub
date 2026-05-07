@@ -1,6 +1,7 @@
 const express = require('express');
 const reviewController = require('../controllers/reviewController');
 const authController = require('../controllers/authController');
+const aiController = require('../controllers/aiController');
 
 const router = express.Router({ mergeParams: true });
 
@@ -14,6 +15,14 @@ router
   .post(
     authController.restrictTo('user'),
     reviewController.createReview
+  );
+
+// AI Bulk Generate Route (Admin Only)
+router
+  .route('/generate-bulk')
+  .post(
+    authController.restrictTo('admin'),
+    aiController.generateBulkReviews
   );
 
 router

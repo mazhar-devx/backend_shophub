@@ -7,6 +7,14 @@ const Product = require('../models/productModel'); // Import Product model
 // Get all reviews
 exports.getAllReviews = catchAsync(async (req, res, next) => {
   let filter = {};
+
+  // VENDOR ISOLATION: If user is admin, they only see reviews for their products
+  if (req.user && req.user.role === 'admin') {
+    const myProducts = await Product.find({ vendor: req.user._id }).select('_id');
+    const myProductIds = myProducts.map(p => p._id);
+    filter = { product: { $in: myProductIds } };
+  }
+
   if (req.params.productId) {
     let productId = req.params.productId;
 
@@ -19,12 +27,21 @@ exports.getAllReviews = catchAsync(async (req, res, next) => {
       productId = product._id;
     }
 
-    filter = { product: productId };
+    // Combine with vendor filter if necessary (security)
+    if (filter.product && filter.product.$in && !filter.product.$in.includes(productId.toString())) {
+        // If they requested a product they don't own
+        return res.status(200).json({ status: 'success', results: 0, data: { reviews: [] } });
+    }
+
+    filter.product = productId;
   }
 
   const reviews = await Review.find(filter).populate({
     path: 'product',
     select: 'name image'
+  }).populate({
+    path: 'user',
+    select: 'name photo'
   });
 
   res.status(200).json({

@@ -22,6 +22,14 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: 'default.jpg'
   },
+  vendorName: {
+    type: String,
+    trim: true,
+    unique: true,
+    sparse: true, // Allow multiple nulls for non-admins
+    minlength: [2, 'Vendor name must have more than or equal to 2 characters'],
+    maxlength: [40, 'Vendor name must have less than or equal to 40 characters']
+  },
   role: {
     type: String,
     enum: ['user', 'admin'],

@@ -130,10 +130,18 @@ app.use((err, req, res, next) => {
     err.statusCode = 400;
     err.message = "Invalid ID format";
   }
+
+  // Mongoose Duplicate Key Error → 400
+  if (err.code === 11000) {
+    err.statusCode = 400;
+    const field = Object.keys(err.keyValue || {})[0] || 'field';
+    err.message = `Duplicate value for ${field}. Please use another one!`;
+  }
+
   console.error("ERROR 💥", err.message);
 
   res.status(err.statusCode || 500).json({
-    status: err.status === "fail" ? "fail" : "error",
+    status: (err.statusCode && err.statusCode.toString().startsWith('4')) ? "fail" : "error",
     message: err.message || "Internal Server Error",
   });
 });

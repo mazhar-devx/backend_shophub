@@ -122,6 +122,11 @@ const productSchema = new mongoose.Schema({
         default: 'g'
       }
     }
+  },
+  vendor: {
+    type: mongoose.Schema.ObjectId,
+    ref: 'User',
+    required: [true, 'A product must belong to a vendor (admin)']
   }
 }, {
   timestamps: true,
@@ -134,19 +139,28 @@ productSchema.index({ price: 1, ratingsAverage: -1 });
 // productSchema.index({ slug: 1 }); // Already defined in field
 
 // DOCUMENT MIDDLEWARE: runs before .save() and .create()
-productSchema.pre('save', function () {
-  if (!this.isModified('name') && !this.isNew) return;
+productSchema.pre('save', async function (next) {
+  if (!this.isModified('name') && !this.isModified('slug') && !this.isNew) return next();
 
-  if (!this.slug) {
-    this.slug = this.name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-') // Replace non-alphanumeric chars with -
-      .replace(/^-+|-+$/g, '');     // Remove leading/trailing -
+  // If slug is not provided or name is modified, generate/regenerate slug
+  let slugBase = (this.slug || this.name)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-') // Replace non-alphanumeric chars with -
+    .replace(/^-+|-+$/g, '');     // Remove leading/trailing -
 
-    // Append random string to ensure uniqueness if needed (simple collision avoidance)
-    // For a real prod app, you'd check DB for existence. 
-    // Using a timestamp suffix if duplicate logic isn't in controller
+  const Product = this.constructor;
+  let slug = slugBase;
+  let exists = await Product.findOne({ slug, _id: { $ne: this._id } });
+  
+  if (exists) {
+    // If it exists, append a short random string instead of a loop for better performance
+    // or use a timestamp based approach
+    const shortId = Math.random().toString(36).substring(2, 7);
+    slug = `${slugBase}-${shortId}`;
   }
+
+  this.slug = slug;
+  next();
 });
 
 // Virtual for discounted price

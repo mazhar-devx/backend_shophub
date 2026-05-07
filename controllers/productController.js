@@ -16,7 +16,14 @@ exports.getAllProducts = catchAsync(async (req, res, next) => {
   queryStr = queryStr.replace(/\b(gte|gt|lte|lt)\b/g, match => `$${match}`);
 
   // Only show products with stock > 0
-  let query = Product.find({ ...JSON.parse(queryStr), stock: { $gte: 0 } });
+  let filter = { ...JSON.parse(queryStr), stock: { $gte: 0 } };
+
+  // VENDOR ISOLATION: If user is admin, they only see their own products
+  if (req.user && req.user.role === 'admin') {
+    filter.vendor = req.user._id;
+  }
+
+  let query = Product.find(filter);
 
   // 3) Search functionality
   if (req.query.search) {
@@ -146,6 +153,9 @@ exports.createProduct = catchAsync(async (req, res, next) => {
     }
   }
 
+  // VENDOR ISOLATION: Associate product with the logged-in admin
+  req.body.vendor = req.user._id;
+
   const newProduct = await Product.create(req.body);
 
   res.status(201).json({
@@ -210,6 +220,16 @@ exports.updateProduct = catchAsync(async (req, res, next) => {
     }
   }
 
+  // VENDOR ISOLATION: Check if admin owns this product
+  const existingProduct = await Product.findById(req.params.id);
+  if (!existingProduct) {
+    return next(new AppError('No product found with that ID', 404));
+  }
+
+  if (req.user.role === 'admin' && existingProduct.vendor.toString() !== req.user._id.toString()) {
+    return next(new AppError('You do not have permission to update this product', 403));
+  }
+
   const product = await Product.findByIdAndUpdate(req.params.id, req.body, {
     new: true,
     runValidators: true
@@ -228,7 +248,17 @@ exports.updateProduct = catchAsync(async (req, res, next) => {
 });
 
 exports.deleteProduct = catchAsync(async (req, res, next) => {
-  const product = await Product.findByIdAndDelete(req.params.id);
+  // VENDOR ISOLATION: Check if admin owns this product
+  const existingProduct = await Product.findById(req.params.id);
+  if (!existingProduct) {
+    return next(new AppError('No product found with that ID', 404));
+  }
+
+  if (req.user.role === 'admin' && existingProduct.vendor.toString() !== req.user._id.toString()) {
+    return next(new AppError('You do not have permission to delete this product', 403));
+  }
+
+  await Product.findByIdAndDelete(req.params.id);
 
   if (!product) {
     return next(new AppError('No product found with that ID', 404));
@@ -257,6 +287,11 @@ exports.searchProducts = catchAsync(async (req, res, next) => {
       { category: searchRegex },
       { tags: searchRegex }
     ];
+  }
+
+  // VENDOR ISOLATION: If admin is searching, limit to their products
+  if (req.user && req.user.role === 'admin') {
+    searchQuery.vendor = req.user._id;
   }
 
   // Category filter

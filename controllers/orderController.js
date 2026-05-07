@@ -5,16 +5,43 @@ const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
 
 exports.getAllOrders = catchAsync(async (req, res, next) => {
-  const features = new APIFeatures(Order.find().populate('user', 'name email').populate({
+  let filter = {};
+
+  // VENDOR ISOLATION: If user is admin, they only see orders with their products
+  if (req.user && req.user.role === 'admin') {
+    // 1. Get all products owned by this admin
+    const myProducts = await Product.find({ vendor: req.user._id }).select('_id');
+    const myProductIds = myProducts.map(p => p._id);
+
+    // 2. Filter orders that contain at least one of these products
+    filter = { 'items.product': { $in: myProductIds } };
+  }
+
+  const features = new APIFeatures(Order.find(filter).populate('user', 'name email').populate({
     path: 'items.product',
-    select: 'name image images'
+    select: 'name image images vendor' // Include vendor to filter items later
   }), req.query)
     .filter()
     .sort()
     .limitFields()
     .paginate();
 
-  const orders = await features.query;
+  let orders = await features.query;
+
+  // 3. VENDOR ISOLATION: Filter items in each order to only show what belongs to this admin
+  if (req.user && req.user.role === 'admin') {
+    orders = orders.map(order => {
+      const orderObj = order.toObject();
+      orderObj.items = orderObj.items.filter(item => 
+        item.product && item.product.vendor && item.product.vendor.toString() === req.user._id.toString()
+      );
+      
+      // Recalculate totalPrice for this vendor's view (optional, but makes sense)
+      orderObj.totalPrice = orderObj.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
+      
+      return orderObj;
+    });
+  }
 
   res.status(200).json({
     status: 'success',
