@@ -2,6 +2,7 @@ const Order = require('../models/orderModel');
 const Product = require('../models/productModel');
 const User = require('../models/userModel');
 const catchAsync = require('../utils/catchAsync');
+const AppError = require('../utils/appError');
 
 exports.getDashboardStats = catchAsync(async (req, res, next) => {
     try {

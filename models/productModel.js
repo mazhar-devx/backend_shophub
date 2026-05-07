@@ -139,8 +139,8 @@ productSchema.index({ price: 1, ratingsAverage: -1 });
 // productSchema.index({ slug: 1 }); // Already defined in field
 
 // DOCUMENT MIDDLEWARE: runs before .save() and .create()
-productSchema.pre('save', async function (next) {
-  if (!this.isModified('name') && !this.isModified('slug') && !this.isNew) return next();
+productSchema.pre('save', async function () {
+  if (!this.isModified('name') && !this.isModified('slug') && !this.isNew) return;
 
   // If slug is not provided or name is modified, generate/regenerate slug
   let slugBase = (this.slug || this.name)
@@ -160,7 +160,6 @@ productSchema.pre('save', async function (next) {
   }
 
   this.slug = slug;
-  next();
 });
 
 // Virtual for discounted price
