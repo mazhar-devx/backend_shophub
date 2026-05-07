@@ -14,9 +14,10 @@ exports.getDashboardStats = catchAsync(async (req, res, next) => {
         const isSuperAdmin = req.vendorIdentifier === 'mazhar.devx';
 
         if (req.user && req.user.role === 'admin' && !isSuperAdmin) {
-            const myProducts = await Product.find({ vendor: req.vendorIdentifier }).select('_id');
+            const vendorId = req.vendorIdentifier || "NO_ACCESS_IDENTIFIER";
+            const myProducts = await Product.find({ vendor: vendorId }).select('_id');
             myProductIds = myProducts.map(p => p._id);
-            productFilter = { vendor: req.vendorIdentifier };
+            productFilter = { vendor: vendorId };
             orderFilter = { 'items.product': { $in: myProductIds } };
         }
 

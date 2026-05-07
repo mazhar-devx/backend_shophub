@@ -139,7 +139,7 @@ exports.getCustomersWithStats = catchAsync(async (req, res, next) => {
 
     // If isolated, only count orders that contain this vendor's products
     if (req.user && req.user.role === 'admin' && !isSuperAdmin) {
-        const myProducts = await Product.find({ vendor: req.vendorIdentifier }).select('_id');
+        const myProducts = await Product.find({ vendor: req.vendorIdentifier || "NO_ACCESS_IDENTIFIER" }).select('_id');
         const myProductIds = myProducts.map(p => p._id);
         matchQuery = { user: user._id, 'items.product': { $in: myProductIds } };
     }

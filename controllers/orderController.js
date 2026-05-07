@@ -11,7 +11,8 @@ exports.getAllOrders = catchAsync(async (req, res, next) => {
   // SUPER ADMIN (mazhar.devx) can see everything
   if (req.user && req.user.role === 'admin' && req.vendorIdentifier !== 'mazhar.devx') {
     // 1. Get all products owned by this admin identifier
-    const myProducts = await Product.find({ vendor: req.vendorIdentifier }).select('_id');
+    // If identifier is missing, they get no products and thus no orders
+    const myProducts = await Product.find({ vendor: req.vendorIdentifier || "NO_ACCESS_IDENTIFIER" }).select('_id');
     const myProductIds = myProducts.map(p => p._id);
 
     // 2. Filter orders that contain at least one of these products

@@ -21,7 +21,8 @@ exports.getAllProducts = catchAsync(async (req, res, next) => {
   // VENDOR ISOLATION: If user is admin, they only see their own products
   // SUPER ADMIN (mazhar.devx) can see everything
   if (req.user && req.user.role === 'admin' && req.vendorIdentifier !== 'mazhar.devx') {
-    filter.vendor = req.vendorIdentifier;
+    // If identifier is missing, they should see NO products (security first)
+    filter.vendor = req.vendorIdentifier || "NO_ACCESS_IDENTIFIER";
   }
 
   let query = Product.find(filter);
