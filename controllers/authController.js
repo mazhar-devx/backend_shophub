@@ -220,6 +220,27 @@ exports.isLoggedIn = async (req, res, next) => {
   next();
 };
 
+// Optional token extraction without enforcing protection
+exports.extractUser = async (req, res, next) => {
+  try {
+    let token;
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1];
+    } else if (req.cookies && req.cookies.jwt) {
+      token = req.cookies.jwt;
+    }
+    
+    if (!token) return next();
+
+    const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
+    const currentUser = await User.findById(decoded.id);
+    if (currentUser) req.user = currentUser;
+    next();
+  } catch (err) {
+    next();
+  }
+};
+
 exports.restrictTo = (...roles) => {
   return (req, res, next) => {
     // roles ['admin', 'user']. role='user'

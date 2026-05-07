@@ -261,9 +261,9 @@ exports.deleteProduct = catchAsync(async (req, res, next) => {
     return next(new AppError('You do not have permission to delete this product', 403));
   }
 
-  await Product.findByIdAndDelete(req.params.id);
+  const deletedProduct = await Product.findByIdAndDelete(req.params.id);
 
-  if (!product) {
+  if (!deletedProduct) {
     return next(new AppError('No product found with that ID', 404));
   }
 

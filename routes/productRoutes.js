@@ -9,7 +9,7 @@ const router = express.Router();
 
 // Public routes
 router.route('/')
-  .get(productController.getAllProducts)
+  .get(authController.extractUser, productController.getAllProducts)
   .post(
     authController.protect,
     authController.restrictTo('admin'),
