@@ -36,7 +36,7 @@ exports.getAllOrders = catchAsync(async (req, res, next) => {
     orders = orders.map(order => {
       const orderObj = order.toObject();
       orderObj.items = orderObj.items.filter(item => 
-        item.product && item.product.vendor === req.vendorIdentifier
+        item.product && String(item.product.vendor) === String(req.vendorIdentifier)
       );
       
       // Recalculate totalPrice for this vendor's view

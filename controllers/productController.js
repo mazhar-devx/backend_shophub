@@ -229,7 +229,7 @@ exports.updateProduct = catchAsync(async (req, res, next) => {
   }
 
   // VENDOR ISOLATION: Check if admin owns this product (Super Admin mazhar.devx bypasses)
-  if (req.user.role === 'admin' && req.vendorIdentifier !== 'mazhar.devx' && existingProduct.vendor !== req.vendorIdentifier) {
+  if (req.user.role === 'admin' && req.vendorIdentifier !== 'mazhar.devx' && String(existingProduct.vendor) !== String(req.vendorIdentifier)) {
     return next(new AppError('You do not have permission to update this product', 403));
   }
 
@@ -258,7 +258,7 @@ exports.deleteProduct = catchAsync(async (req, res, next) => {
   }
 
   // VENDOR ISOLATION: Check if admin owns this product (Super Admin mazhar.devx bypasses)
-  if (req.user.role === 'admin' && req.vendorIdentifier !== 'mazhar.devx' && existingProduct.vendor !== req.vendorIdentifier) {
+  if (req.user.role === 'admin' && req.vendorIdentifier !== 'mazhar.devx' && String(existingProduct.vendor) !== String(req.vendorIdentifier)) {
     return next(new AppError('You do not have permission to delete this product', 403));
   }
 

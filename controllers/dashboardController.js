@@ -56,7 +56,7 @@ exports.getDashboardStats = catchAsync(async (req, res, next) => {
         if (req.user && req.user.role === 'admin' && !isSuperAdmin) {
             recentOrders = recentOrders.map(order => {
                 const o = order.toObject();
-                o.items = o.items.filter(item => item.product && item.product.vendor === req.vendorIdentifier);
+                o.items = o.items.filter(item => item.product && String(item.product.vendor) === String(req.vendorIdentifier));
                 o.totalPrice = o.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
                 return o;
             });
