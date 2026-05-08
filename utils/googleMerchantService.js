@@ -25,13 +25,15 @@ class GoogleMerchantService {
       const envKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
       if (envKey) {
         console.log('[GoogleMerchant] Using credentials from environment variable.');
-        const credentials = JSON.parse(envKey);
-        auth = new google.auth.JWT(
-          credentials.client_email,
-          null,
-          credentials.private_key,
-          scopes
-        );
+        try {
+          const credentials = JSON.parse(envKey);
+          // Use fromJSON for better compatibility with different credential formats
+          auth = google.auth.fromJSON(credentials);
+          auth.scopes = scopes;
+        } catch (jsonErr) {
+          console.error('[GoogleMerchant] JSON Parse error for environment key:', jsonErr.message);
+          return false;
+        }
       } 
       // 2. Fallback to key file (Local development)
       else if (fs.existsSync(this.keyFilePath)) {
