@@ -3,3 +3,4 @@ config.env
 .env
 *.log
 .DS_Store
+config/google-merchant-key.json
