@@ -18,25 +18,35 @@ class GoogleMerchantService {
   }
 
   async init() {
-    if (this.initialized) return;
-
-    if (!fs.existsSync(this.keyFilePath)) {
-      console.warn(`[GoogleMerchant] Key file not found at ${this.keyFilePath}. Integration will be disabled.`);
-      return false;
-    }
+    if (this.initialized) return true;
 
     try {
-      const auth = new GoogleAuth({
-        keyFile: this.keyFilePath,
+      let authConfig = {
         scopes: 'https://www.googleapis.com/auth/content',
-      });
+      };
 
+      // 1. Try environment variable first (Best for production like Railway)
+      if (process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+        console.log('[GoogleMerchant] Using credentials from environment variable.');
+        authConfig.credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
+      } 
+      // 2. Fallback to key file (Local development)
+      else if (fs.existsSync(this.keyFilePath)) {
+        console.log('[GoogleMerchant] Using credentials from key file.');
+        authConfig.keyFile = this.keyFilePath;
+      } 
+      else {
+        console.warn(`[GoogleMerchant] No credentials found (env or file). Integration disabled.`);
+        return false;
+      }
+
+      const auth = new GoogleAuth(authConfig);
       this.client = new ProductsServiceClient({ auth });
       this.dsClient = new DataSourcesServiceClient({ auth });
       this.initialized = true;
       return true;
     } catch (error) {
-      console.error('[GoogleMerchant] Initialization error:', error);
+      console.error('[GoogleMerchant] Initialization error:', error.message);
       return false;
     }
   }
