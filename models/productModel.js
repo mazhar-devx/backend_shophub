@@ -127,6 +127,18 @@ const productSchema = new mongoose.Schema({
     type: mongoose.Schema.ObjectId,
     ref: 'User',
     required: [true, 'A product must belong to a vendor (admin)']
+  },
+  googleMerchantId: {
+    type: String,
+    sparse: true
+  },
+  googleMerchantSyncStatus: {
+    type: String,
+    enum: ['pending', 'synced', 'error'],
+    default: 'pending'
+  },
+  googleMerchantLastError: {
+    type: String
   }
 }, {
   timestamps: true,
@@ -163,6 +175,18 @@ productSchema.pre('save', async function () {
   }
 
   this.slug = slug;
+});
+
+// POST-SAVE MIDDLEWARE: Sync to Google Merchant Center
+productSchema.post('save', async function (doc) {
+  // Only sync if not already syncing to avoid loops, and if not a bulk operation
+  // For simplicity, we just trigger the service. It handles init and credential checks.
+  const GoogleMerchantService = require('../utils/googleMerchantService');
+  
+  // We run this without await to not block the response
+  GoogleMerchantService.syncProduct(doc).catch(err => {
+    console.error('[GoogleMerchant] Auto-sync failed:', err.message);
+  });
 });
 
 // Virtual for discounted price

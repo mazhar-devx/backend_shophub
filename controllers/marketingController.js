@@ -4,6 +4,8 @@ const User = require('../models/userModel'); // Import User
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
 const crypto = require('crypto');
+const GoogleMerchantService = require('../utils/googleMerchantService');
+const Product = require('../models/productModel');
 
 // Subscribe to newsletter
 exports.subscribe = catchAsync(async (req, res, next) => {
@@ -153,6 +155,56 @@ exports.getMyOffers = catchAsync(async (req, res, next) => {
         results: activeOffers.length,
         data: {
             offers: activeOffers
+        }
+    });
+});
+
+exports.syncToGoogleMerchant = catchAsync(async (req, res, next) => {
+    // 1. Check if initialized
+    const initialized = await GoogleMerchantService.init();
+    if (!initialized) {
+        return next(new AppError('Google Merchant Service not initialized. Please check credentials.', 500));
+    }
+
+    // 2. Ensure Data Source exists
+    const dataSource = await GoogleMerchantService.ensureDataSource();
+    
+    // 3. Get products to sync (either all or pending)
+    const { forceAll } = req.body;
+    const query = forceAll ? {} : { googleMerchantSyncStatus: { $ne: 'synced' } };
+    const products = await Product.find(query);
+
+    if (products.length === 0) {
+        return res.status(200).json({
+            status: 'success',
+            message: 'All products already synced.',
+            data: { syncedCount: 0 }
+        });
+    }
+
+    // 4. Run sync in background (not to block response if many products)
+    const results = {
+        total: products.length,
+        success: 0,
+        failed: 0
+    };
+
+    // We'll sync them sequentially for now to avoid rate limits, but could be parallelized
+    for (const product of products) {
+        const result = await GoogleMerchantService.syncProduct(product);
+        if (result.status === 'success') {
+            results.success++;
+        } else {
+            results.failed++;
+        }
+    }
+
+    res.status(200).json({
+        status: 'success',
+        message: `Sync complete. ${results.success} success, ${results.failed} failed.`,
+        data: {
+            results,
+            dataSourceName: GoogleMerchantService.dataSourceName
         }
     });
 });
