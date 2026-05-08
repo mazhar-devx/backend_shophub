@@ -71,6 +71,17 @@ app.options("*", cors());
 ===================================================== */
 app.use(cookieParser());
 app.use(setSecurityHeaders);
+
+// [FIX] Prevent aggressive caching of index.html and API responses
+app.use((req, res, next) => {
+  if (req.url === '/' || req.url === '/index.html' || req.url.startsWith('/api')) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+  next();
+});
+
 app.use("/api", rateLimiting);
 
 // Body parsers
