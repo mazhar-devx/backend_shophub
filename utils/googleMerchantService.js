@@ -26,17 +26,24 @@ class GoogleMerchantService {
       };
 
       // 1. Try environment variable first (Best for production like Railway)
-      if (process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
-        console.log('[GoogleMerchant] Using credentials from environment variable.');
-        authConfig.credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
+      const envKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+      if (envKey) {
+        console.log('[GoogleMerchant] Found GOOGLE_SERVICE_ACCOUNT_KEY in environment.');
+        try {
+          authConfig.credentials = JSON.parse(envKey);
+          console.log('[GoogleMerchant] Successfully parsed JSON credentials from environment.');
+        } catch (parseErr) {
+          console.error('[GoogleMerchant] Failed to parse GOOGLE_SERVICE_ACCOUNT_KEY JSON:', parseErr.message);
+          return false;
+        }
       } 
       // 2. Fallback to key file (Local development)
       else if (fs.existsSync(this.keyFilePath)) {
-        console.log('[GoogleMerchant] Using credentials from key file.');
+        console.log('[GoogleMerchant] Using credentials from key file:', this.keyFilePath);
         authConfig.keyFile = this.keyFilePath;
       } 
       else {
-        console.warn(`[GoogleMerchant] No credentials found (env or file). Integration disabled.`);
+        console.warn(`[GoogleMerchant] No credentials found. GOOGLE_SERVICE_ACCOUNT_KEY is ${envKey ? 'invalid' : 'missing'}. File exists: ${fs.existsSync(this.keyFilePath)}`);
         return false;
       }
 
@@ -44,6 +51,7 @@ class GoogleMerchantService {
       this.client = new ProductsServiceClient({ auth });
       this.dsClient = new DataSourcesServiceClient({ auth });
       this.initialized = true;
+      console.log('[GoogleMerchant] Service successfully initialized.');
       return true;
     } catch (error) {
       console.error('[GoogleMerchant] Initialization error:', error.message);
