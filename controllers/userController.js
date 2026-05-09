@@ -176,3 +176,40 @@ exports.getCustomersWithStats = catchAsync(async (req, res, next) => {
     }
   });
 });
+
+exports.followUser = catchAsync(async (req, res, next) => {
+  if (req.params.id === req.user.id) {
+    return next(new AppError('You cannot follow yourself', 400));
+  }
+
+  const targetUser = await User.findById(req.params.id);
+  if (!targetUser) return next(new AppError('User not found', 404));
+
+  await User.findByIdAndUpdate(req.user.id, {
+    $addToSet: { following: req.params.id }
+  });
+
+  await User.findByIdAndUpdate(req.params.id, {
+    $addToSet: { followers: req.user.id }
+  });
+
+  res.status(200).json({
+    status: 'success',
+    message: 'User followed successfully'
+  });
+});
+
+exports.unfollowUser = catchAsync(async (req, res, next) => {
+  await User.findByIdAndUpdate(req.user.id, {
+    $pull: { following: req.params.id }
+  });
+
+  await User.findByIdAndUpdate(req.params.id, {
+    $pull: { followers: req.user.id }
+  });
+
+  res.status(200).json({
+    status: 'success',
+    message: 'User unfollowed successfully'
+  });
+});
