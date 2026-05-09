@@ -27,6 +27,7 @@ router.post('/:id/follow', userController.followUser);
 router.post('/:id/unfollow', userController.unfollowUser);
 
 router.get('/:id', userController.getUser);
+router.get('/:id/saved-sounds', userController.getSavedSounds);
 
 router.use(authController.restrictTo('admin'));
 

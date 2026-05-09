@@ -221,3 +221,19 @@ exports.unfollowUser = catchAsync(async (req, res, next) => {
     message: 'User unfollowed successfully'
   });
 });
+
+exports.getSavedSounds = catchAsync(async (req, res, next) => {
+  const user = await User.findById(req.params.id);
+  if (!user) return next(new AppError('No user found', 404));
+
+  const Video = require('../models/videoModel');
+  const sounds = await Video.find({ _id: { $in: user.savedSounds } })
+    .populate('user', 'name photo vendorName');
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      sounds
+    }
+  });
+});
