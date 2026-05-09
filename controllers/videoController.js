@@ -79,7 +79,9 @@ exports.getAllVideos = catchAsync(async (req, res, next) => {
       
       // Scoring formula: (Engagement Weight) / (Time Decay)
       // We give high priority to likes and comments, and decay score over time
-      v.recScore = (likesCount * 10 + commentsCount * 5 + viewsCount) / Math.pow(ageHours + 2, 1.5);
+      // Add a significant random boost (0 to 15 points) to ensure freshness on every refresh
+      const randomBoost = Math.random() * 15;
+      v.recScore = ((likesCount * 10 + commentsCount * 5 + viewsCount) / Math.pow(ageHours + 2, 1.5)) + randomBoost;
     });
 
     // 3. Sort by recommendation score
