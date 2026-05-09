@@ -54,6 +54,9 @@ const videoSchema = new mongoose.Schema({
   soundId: {
     type: mongoose.Schema.ObjectId,
     ref: 'Video'
+  },
+  productLink: {
+    type: String
   }
 }, {
   timestamps: true,
