@@ -1,0 +1,24 @@
+const express = require('express');
+const videoController = require('../controllers/videoController');
+const authController = require('../controllers/authController');
+const upload = require('../middleware/upload');
+
+const router = express.Router();
+
+// Public routes
+router.get('/', videoController.getAllVideos);
+router.get('/user/:userId', videoController.getUserVideos);
+
+// Protected routes
+router.use(authController.protect);
+
+router.post(
+  '/', 
+  upload.single('videoFile'), // Use existing upload middleware for video files
+  videoController.createVideo
+);
+
+router.post('/:id/like', videoController.toggleLike);
+router.post('/:id/comment', videoController.addComment);
+
+module.exports = router;
