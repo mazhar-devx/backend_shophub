@@ -40,10 +40,24 @@ exports.getAllVideos = catchAsync(async (req, res, next) => {
     .populate({
       path: 'user',
       select: 'name photo vendorName followers following'
+    })
+    .populate({
+      path: 'comments.user',
+      select: 'name photo vendorName'
+    })
+    .populate({
+      path: 'comments.replies.user',
+      select: 'name photo vendorName'
     });
 
   // Sort logic
   if (req.query.sort === 'likes') {
+    // For 'foryou' feed, if userId is provided, exclude user's own videos from the DB query
+    if (req.query.userId && !filter.user) {
+      filter.user = { $ne: req.query.userId };
+    }
+    // We fetch without strict sort here to allow full shuffling later, 
+    // but we can keep it for now as a base query, then shuffle in JS.
     query = query.sort('-likesCount -createdAt');
   } else {
     query = query.sort('-createdAt');
@@ -52,35 +66,49 @@ exports.getAllVideos = catchAsync(async (req, res, next) => {
   let videos = await query;
 
   // Basic Recommendation Algorithm for 'foryou' feed
-  if (req.query.sort === 'likes' && req.query.userId) {
-    try {
-      // 1. Find videos this user liked
-      const likedVideos = await Video.find({ likes: req.query.userId }).select('tags');
-      if (likedVideos.length > 0) {
-        // 2. Extract and count tags
-        const tagCounts = {};
-        likedVideos.forEach(v => {
-          v.tags.forEach(tag => {
-            tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+  if (req.query.sort === 'likes') {
+    // Randomize all videos first so refresh changes places
+    videos = videos.sort(() => Math.random() - 0.5);
+
+    if (req.query.userId) {
+      try {
+        // 1. Find videos this user liked
+        const likedVideos = await Video.find({ likes: req.query.userId }).select('tags');
+        if (likedVideos.length > 0) {
+          // 2. Extract and count tags
+          const tagCounts = {};
+          likedVideos.forEach(v => {
+            v.tags.forEach(tag => {
+              tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+            });
           });
-        });
-        
-        // 3. Get top 5 preferred tags
-        const preferredTags = Object.keys(tagCounts).sort((a, b) => tagCounts[b] - tagCounts[a]).slice(0, 5);
-        
-        if (preferredTags.length > 0) {
-          // 4. Sort fetched videos based on whether they contain preferred tags
-          videos.sort((a, b) => {
-            const aHasPref = a.tags.some(t => preferredTags.includes(t));
-            const bHasPref = b.tags.some(t => preferredTags.includes(t));
-            if (aHasPref && !bHasPref) return -1;
-            if (!aHasPref && bHasPref) return 1;
-            return 0; // maintain previous sort order (likes/date) if both or neither have preferred tags
-          });
+          
+          // 3. Get top 5 preferred tags
+          const preferredTags = Object.keys(tagCounts).sort((a, b) => tagCounts[b] - tagCounts[a]).slice(0, 5);
+          
+          if (preferredTags.length > 0) {
+            // 4. Sort fetched videos based on whether they contain preferred tags and if they've been liked
+            videos.sort((a, b) => {
+              // We want to prioritize videos the user HAS NOT liked yet
+              const aLiked = a.likes.some(id => id.toString() === req.query.userId);
+              const bLiked = b.likes.some(id => id.toString() === req.query.userId);
+
+              // Push already liked videos lower to avoid repeating what they already liked
+              if (!aLiked && bLiked) return -1;
+              if (aLiked && !bLiked) return 1;
+
+              const aHasPref = a.tags.some(t => preferredTags.includes(t));
+              const bHasPref = b.tags.some(t => preferredTags.includes(t));
+              if (aHasPref && !bHasPref) return -1;
+              if (!aHasPref && bHasPref) return 1;
+              
+              return 0; // maintain randomized order if both or neither have preferred tags
+            });
+          }
         }
+      } catch (err) {
+        console.log('Recommendation error:', err);
       }
-    } catch (err) {
-      console.log('Recommendation error:', err);
     }
   }
 
@@ -238,10 +266,10 @@ exports.addComment = catchAsync(async (req, res, next) => {
   }
 
   // Create notification for Comment
-  if (video.user._id.toString() !== req.user.id) {
+  if (video.user.toString() !== req.user.id) {
     const Notification = require('../models/notificationModel');
     await Notification.create({
-      recipient: video.user._id,
+      recipient: video.user,
       sender: req.user.id,
       type: 'comment',
       video: video._id
@@ -264,7 +292,7 @@ exports.likeComment = catchAsync(async (req, res, next) => {
   if (!comment) return next(new AppError('No comment found', 404));
 
   const userId = req.user.id;
-  const isLiked = comment.likes.includes(userId);
+  const isLiked = comment.likes.some(id => id.toString() === userId.toString());
 
   if (isLiked) {
     comment.likes.pull(userId);
