@@ -379,3 +379,149 @@ exports.saveSound = catchAsync(async (req, res, next) => {
     }
   });
 });
+
+exports.updateVideo = catchAsync(async (req, res, next) => {
+  let video = await Video.findById(req.params.id);
+
+  if (!video) {
+    return next(new AppError('No video found with that ID', 404));
+  }
+
+  // Check if owner
+  if (video.user.toString() !== req.user.id && req.user.role !== 'admin') {
+    return next(new AppError('You do not have permission to update this video', 403));
+  }
+
+  // Handle tags if they are sent as string
+  if (req.body.tags && typeof req.body.tags === 'string') {
+    req.body.tags = req.body.tags.split(',').map(tag => tag.trim()).filter(t => t !== '');
+  }
+
+  const updatedVideo = await Video.findByIdAndUpdate(req.params.id, req.body, {
+    new: true,
+    runValidators: true
+  }).populate('user', 'name photo vendorName');
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      video: updatedVideo
+    }
+  });
+});
+
+exports.deleteVideo = catchAsync(async (req, res, next) => {
+  const video = await Video.findById(req.params.id);
+
+  if (!video) {
+    return next(new AppError('No video found with that ID', 404));
+  }
+
+  // Check if owner
+  if (video.user.toString() !== req.user.id && req.user.role !== 'admin') {
+    return next(new AppError('You do not have permission to delete this video', 403));
+  }
+
+  await video.deleteOne();
+
+  res.status(204).json({
+    status: 'success',
+    data: null
+  });
+});
+
+exports.updateComment = catchAsync(async (req, res, next) => {
+  const video = await Video.findById(req.params.videoId);
+  if (!video) return next(new AppError('No video found', 404));
+
+  const comment = video.comments.id(req.params.commentId);
+  if (!comment) return next(new AppError('No comment found', 404));
+
+  // Check if owner of comment
+  if (comment.user.toString() !== req.user.id && req.user.role !== 'admin') {
+    return next(new AppError('You do not have permission to update this comment', 403));
+  }
+
+  if (req.body.text) comment.text = req.body.text;
+  
+  await video.save();
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      comment
+    }
+  });
+});
+
+exports.deleteComment = catchAsync(async (req, res, next) => {
+  const video = await Video.findById(req.params.videoId);
+  if (!video) return next(new AppError('No video found', 404));
+
+  const comment = video.comments.id(req.params.commentId);
+  if (!comment) return next(new AppError('No comment found', 404));
+
+  // Check if owner of comment or owner of video
+  if (comment.user.toString() !== req.user.id && video.user.toString() !== req.user.id && req.user.role !== 'admin') {
+    return next(new AppError('You do not have permission to delete this comment', 403));
+  }
+
+  video.comments.pull(req.params.commentId);
+  await video.save();
+
+  res.status(204).json({
+    status: 'success',
+    data: null
+  });
+});
+
+exports.updateReply = catchAsync(async (req, res, next) => {
+  const video = await Video.findById(req.params.videoId);
+  if (!video) return next(new AppError('No video found', 404));
+
+  const comment = video.comments.id(req.params.commentId);
+  if (!comment) return next(new AppError('No comment found', 404));
+
+  const reply = comment.replies.id(req.params.replyId);
+  if (!reply) return next(new AppError('No reply found', 404));
+
+  // Check if owner of reply
+  if (reply.user.toString() !== req.user.id && req.user.role !== 'admin') {
+    return next(new AppError('You do not have permission to update this reply', 403));
+  }
+
+  if (req.body.text) reply.text = req.body.text;
+  
+  await video.save();
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      reply
+    }
+  });
+});
+
+exports.deleteReply = catchAsync(async (req, res, next) => {
+  const video = await Video.findById(req.params.videoId);
+  if (!video) return next(new AppError('No video found', 404));
+
+  const comment = video.comments.id(req.params.commentId);
+  if (!comment) return next(new AppError('No comment found', 404));
+
+  const reply = comment.replies.id(req.params.replyId);
+  if (!reply) return next(new AppError('No reply found', 404));
+
+  // Check if owner of reply or owner of video or owner of comment
+  if (reply.user.toString() !== req.user.id && video.user.toString() !== req.user.id && req.user.role !== 'admin') {
+    return next(new AppError('You do not have permission to delete this reply', 403));
+  }
+
+  comment.replies.pull(req.params.replyId);
+  await video.save();
+
+  res.status(204).json({
+    status: 'success',
+    data: null
+  });
+});
