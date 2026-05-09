@@ -10,6 +10,9 @@ const videoSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Video must have a URL']
   },
+  thumbnailUrl: {
+    type: String
+  },
   name: {
     type: String,
     required: [true, 'Video must have a name'],

@@ -14,7 +14,10 @@ router.use(authController.protect);
 
 router.post(
   '/', 
-  upload.single('videoFile'), // Use existing upload middleware for video files
+  upload.fields([
+    { name: 'videoFile', maxCount: 1 },
+    { name: 'thumbnailFile', maxCount: 1 }
+  ]),
   videoController.createVideo
 );
 

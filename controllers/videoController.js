@@ -85,7 +85,17 @@ exports.toggleSaveVideo = catchAsync(async (req, res, next) => {
 });
 
 exports.createVideo = catchAsync(async (req, res, next) => {
-  // If a file was uploaded via multer, use that path
+  // If files were uploaded via multer (using fields)
+  if (req.files) {
+    if (req.files.videoFile) {
+      req.body.videoUrl = req.files.videoFile[0].path;
+    }
+    if (req.files.thumbnailFile) {
+      req.body.thumbnailUrl = req.files.thumbnailFile[0].path;
+    }
+  }
+
+  // Fallback for single file upload (just in case)
   if (req.file) {
     req.body.videoUrl = req.file.path;
   }
@@ -99,7 +109,7 @@ exports.createVideo = catchAsync(async (req, res, next) => {
 
   // Handle tags if they come as a string
   if (typeof req.body.tags === 'string') {
-    req.body.tags = req.body.tags.split(',').map(tag => tag.trim());
+    req.body.tags = req.body.tags.split(',').map(tag => tag.trim()).filter(t => t !== '');
   }
 
   const newVideo = await Video.create(req.body);
