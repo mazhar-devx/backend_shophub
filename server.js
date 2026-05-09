@@ -157,7 +157,7 @@ app.use((err, req, res, next) => {
     err.message = `Duplicate value for ${field}. Please use another one!`;
   }
 
-  console.error("ERROR 💥", err.message);
+  console.error("ERROR 💥", err);
 
   res.status(err.statusCode || 500).json({
     status: (err.statusCode && err.statusCode.toString().startsWith('4')) ? "fail" : "error",

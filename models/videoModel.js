@@ -68,11 +68,10 @@ videoSchema.virtual('commentCount').get(function() {
 });
 
 // Update likesCount before saving
-videoSchema.pre('save', function(next) {
+videoSchema.pre('save', async function() {
   if (this.isModified('likes')) {
     this.likesCount = this.likes.length;
   }
-  next();
 });
 
 const Video = mongoose.model('Video', videoSchema);
