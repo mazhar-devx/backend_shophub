@@ -210,18 +210,24 @@ exports.toggleLike = catchAsync(async (req, res, next) => {
 });
 
 exports.addComment = catchAsync(async (req, res, next) => {
-  if (!req.body.text) {
-    return next(new AppError('Comment text is required', 400));
+  if (!req.body.text && !req.file) {
+    return next(new AppError('Comment text or media is required', 400));
+  }
+
+  const commentData = {
+    user: req.user.id,
+    text: req.body.text || ''
+  };
+
+  if (req.file) {
+    commentData.mediaUrl = req.file.path;
   }
 
   const video = await Video.findByIdAndUpdate(
     req.params.id,
     {
       $push: {
-        comments: {
-          user: req.user.id,
-          text: req.body.text
-        }
+        comments: commentData
       }
     },
     { new: true, runValidators: true }
@@ -246,6 +252,67 @@ exports.addComment = catchAsync(async (req, res, next) => {
     status: 'success',
     data: {
       comments: video.comments
+    }
+  });
+});
+
+exports.likeComment = catchAsync(async (req, res, next) => {
+  const video = await Video.findById(req.params.videoId);
+  if (!video) return next(new AppError('No video found', 404));
+
+  const comment = video.comments.id(req.params.commentId);
+  if (!comment) return next(new AppError('No comment found', 404));
+
+  const userId = req.user.id;
+  const isLiked = comment.likes.includes(userId);
+
+  if (isLiked) {
+    comment.likes.pull(userId);
+  } else {
+    comment.likes.push(userId);
+  }
+
+  await video.save();
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      isLiked: !isLiked,
+      likes: comment.likes.length
+    }
+  });
+});
+
+exports.replyToComment = catchAsync(async (req, res, next) => {
+  if (!req.body.text && !req.file) {
+    return next(new AppError('Reply text or media is required', 400));
+  }
+
+  const video = await Video.findById(req.params.videoId);
+  if (!video) return next(new AppError('No video found', 404));
+
+  const comment = video.comments.id(req.params.commentId);
+  if (!comment) return next(new AppError('No comment found', 404));
+
+  const replyData = {
+    user: req.user.id,
+    text: req.body.text || ''
+  };
+
+  if (req.file) {
+    replyData.mediaUrl = req.file.path;
+  }
+
+  comment.replies.push(replyData);
+  await video.save();
+
+  // Populate user data
+  await video.populate('comments.replies.user', 'name photo vendorName');
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      replies: video.comments.id(req.params.commentId).replies
     }
   });
 });

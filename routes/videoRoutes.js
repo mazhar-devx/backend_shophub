@@ -24,6 +24,10 @@ router.post(
 router.post('/:id/like', videoController.toggleLike);
 router.post('/:id/save', videoController.toggleSaveVideo);
 router.post('/:id/save-sound', videoController.saveSound);
-router.post('/:id/comment', videoController.addComment);
+
+// Comment routes
+router.post('/:id/comment', upload.single('media'), videoController.addComment);
+router.post('/:videoId/comment/:commentId/like', videoController.likeComment);
+router.post('/:videoId/comment/:commentId/reply', upload.single('media'), videoController.replyToComment);
 
 module.exports = router;

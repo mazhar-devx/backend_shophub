@@ -35,9 +35,22 @@ const videoSchema = new mongoose.Schema({
       ref: 'User'
     },
     text: {
-      type: String,
-      required: true
+      type: String
     },
+    likes: [{
+      type: mongoose.Schema.ObjectId,
+      ref: 'User'
+    }],
+    mediaUrl: {
+      type: String
+    },
+    replies: [{
+      user: { type: mongoose.Schema.ObjectId, ref: 'User' },
+      text: { type: String },
+      likes: [{ type: mongoose.Schema.ObjectId, ref: 'User' }],
+      mediaUrl: { type: String },
+      createdAt: { type: Date, default: Date.now }
+    }],
     createdAt: {
       type: Date,
       default: Date.now
