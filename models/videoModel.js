@@ -79,17 +79,17 @@ const videoSchema = new mongoose.Schema({
 
 // Virtual for like count
 videoSchema.virtual('likeCount').get(function() {
-  return this.likes.length;
+  return this.likes ? this.likes.length : 0;
 });
 
 // Virtual for comment count
 videoSchema.virtual('commentCount').get(function() {
-  return this.comments.length;
+  return this.comments ? this.comments.length : 0;
 });
 
 // Update likesCount before saving
 videoSchema.pre('save', async function() {
-  if (this.isModified('likes')) {
+  if (this.isModified('likes') && this.likes) {
     this.likesCount = this.likes.length;
   }
 });
