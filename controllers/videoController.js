@@ -24,6 +24,11 @@ exports.getAllVideos = catchAsync(async (req, res, next) => {
     filter = { _id: { $in: user.savedVideos } };
   }
 
+  // Filter by tag
+  if (req.query.tag) {
+    filter.tags = req.query.tag;
+  }
+
   let query = Video.find(filter)
     .populate({
       path: 'user',
