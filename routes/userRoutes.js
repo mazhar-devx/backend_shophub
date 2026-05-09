@@ -23,6 +23,8 @@ const { uploadUserPhoto } = require('../middleware/uploadMiddleware');
 router.patch('/updateMe', uploadUserPhoto, userController.updateMe);
 router.delete('/deleteMe', userController.deleteMe);
 
+router.get('/:id', userController.getUser);
+
 router.use(authController.restrictTo('admin'));
 
 router.get('/customers-stats', userController.getCustomersWithStats);
@@ -34,7 +36,6 @@ router
 
 router
   .route('/:id')
-  .get(userController.getUser)
   .patch(userController.updateUser)
   .delete(userController.deleteUser);
 
