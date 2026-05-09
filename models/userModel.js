@@ -27,6 +27,10 @@ const userSchema = new mongoose.Schema({
     type: mongoose.Schema.ObjectId,
     ref: 'Video'
   }],
+  savedSounds: [{
+    type: mongoose.Schema.ObjectId,
+    ref: 'Video'
+  }],
   email: {
     type: String,
     required: [true, 'Please provide your email'],

@@ -23,6 +23,7 @@ router.post(
 
 router.post('/:id/like', videoController.toggleLike);
 router.post('/:id/save', videoController.toggleSaveVideo);
+router.post('/:id/save-sound', videoController.saveSound);
 router.post('/:id/comment', videoController.addComment);
 
 module.exports = router;

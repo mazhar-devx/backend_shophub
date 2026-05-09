@@ -31,6 +31,11 @@ exports.getAllVideos = catchAsync(async (req, res, next) => {
     filter.tags = req.query.tag;
   }
 
+  // Filter by sound
+  if (req.query.soundId) {
+    filter.soundId = req.query.soundId;
+  }
+
   let query = Video.find(filter)
     .populate({
       path: 'user',
@@ -255,6 +260,27 @@ exports.getUserVideos = catchAsync(async (req, res, next) => {
     results: videos.length,
     data: {
       videos
+    }
+  });
+});
+
+exports.saveSound = catchAsync(async (req, res, next) => {
+  const User = require('../models/userModel');
+  const user = await User.findById(req.user.id);
+  const videoId = req.params.id; // We use the original video ID as the sound ID
+
+  const isSaved = user.savedSounds.includes(videoId);
+
+  if (isSaved) {
+    await User.findByIdAndUpdate(req.user.id, { $pull: { savedSounds: videoId } });
+  } else {
+    await User.findByIdAndUpdate(req.user.id, { $addToSet: { savedSounds: videoId } });
+  }
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      isSaved: !isSaved
     }
   });
 });

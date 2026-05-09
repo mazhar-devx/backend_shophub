@@ -50,6 +50,10 @@ const videoSchema = new mongoose.Schema({
   likesCount: {
     type: Number,
     default: 0
+  },
+  soundId: {
+    type: mongoose.Schema.ObjectId,
+    ref: 'Video'
   }
 }, {
   timestamps: true,
