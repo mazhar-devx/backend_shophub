@@ -44,7 +44,40 @@ exports.getAllVideos = catchAsync(async (req, res, next) => {
     query = query.sort('-createdAt');
   }
 
-  const videos = await query;
+  let videos = await query;
+
+  // Basic Recommendation Algorithm for 'foryou' feed
+  if (req.query.sort === 'likes' && req.query.userId) {
+    try {
+      // 1. Find videos this user liked
+      const likedVideos = await Video.find({ likes: req.query.userId }).select('tags');
+      if (likedVideos.length > 0) {
+        // 2. Extract and count tags
+        const tagCounts = {};
+        likedVideos.forEach(v => {
+          v.tags.forEach(tag => {
+            tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+          });
+        });
+        
+        // 3. Get top 5 preferred tags
+        const preferredTags = Object.keys(tagCounts).sort((a, b) => tagCounts[b] - tagCounts[a]).slice(0, 5);
+        
+        if (preferredTags.length > 0) {
+          // 4. Sort fetched videos based on whether they contain preferred tags
+          videos.sort((a, b) => {
+            const aHasPref = a.tags.some(t => preferredTags.includes(t));
+            const bHasPref = b.tags.some(t => preferredTags.includes(t));
+            if (aHasPref && !bHasPref) return -1;
+            if (!aHasPref && bHasPref) return 1;
+            return 0; // maintain previous sort order (likes/date) if both or neither have preferred tags
+          });
+        }
+      }
+    } catch (err) {
+      console.log('Recommendation error:', err);
+    }
+  }
 
   res.status(200).json({
     status: 'success',
