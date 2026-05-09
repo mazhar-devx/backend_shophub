@@ -33,7 +33,7 @@ exports.updateMe = catchAsync(async (req, res, next) => {
 
   // 3) Update user document
   const updatedUser = await User.findByIdAndUpdate(req.user.id, filteredBody, {
-    new: true,
+    returnDocument: 'after',
     runValidators: true
   });
 
@@ -95,7 +95,7 @@ exports.getAllUsers = catchAsync(async (req, res, next) => {
 
 exports.updateUser = catchAsync(async (req, res, next) => {
   const user = await User.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
+    returnDocument: 'after',
     runValidators: true
   });
 
