@@ -114,6 +114,9 @@ exports.createVideo = catchAsync(async (req, res, next) => {
     req.body.tags = [];
   }
 
+  console.log("[VideoController] Create Request Body:", req.body);
+  console.log("[VideoController] Create Request Files:", req.files);
+
   const newVideo = await Video.create(req.body);
 
   res.status(201).json({
