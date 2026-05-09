@@ -67,8 +67,23 @@ exports.getAllVideos = catchAsync(async (req, res, next) => {
 
   // Basic Recommendation Algorithm for 'foryou' feed
   if (req.query.sort === 'likes') {
-    // Randomize all videos first so refresh changes places
+    // 1. Randomize slightly to avoid static feed
     videos = videos.sort(() => Math.random() - 0.5);
+
+    // 2. Calculate AI-inspired recommendation score
+    videos.forEach(v => {
+      const likesCount = v.likes?.length || 0;
+      const commentsCount = v.comments?.length || 0;
+      const viewsCount = v.views || 0;
+      const ageHours = (Date.now() - new Date(v.createdAt).getTime()) / (1000 * 60 * 60);
+      
+      // Scoring formula: (Engagement Weight) / (Time Decay)
+      // We give high priority to likes and comments, and decay score over time
+      v.recScore = (likesCount * 10 + commentsCount * 5 + viewsCount) / Math.pow(ageHours + 2, 1.5);
+    });
+
+    // 3. Sort by recommendation score
+    videos.sort((a, b) => b.recScore - a.recScore);
 
     if (req.query.userId) {
       try {
@@ -99,10 +114,11 @@ exports.getAllVideos = catchAsync(async (req, res, next) => {
 
               const aHasPref = a.tags.some(t => preferredTags.includes(t));
               const bHasPref = b.tags.some(t => preferredTags.includes(t));
+              
               if (aHasPref && !bHasPref) return -1;
               if (!aHasPref && bHasPref) return 1;
               
-              return 0; // maintain randomized order if both or neither have preferred tags
+              return b.recScore - a.recScore; // maintain randomized order if both or neither have preferred tags
             });
           }
         }
