@@ -6,10 +6,12 @@ exports.getAllVideos = catchAsync(async (req, res, next) => {
   let filter = {};
   
   // If user wants following feed
-  if (req.query.feed === 'following' && req.user) {
+  if (req.query.feed === 'following' && req.query.userId) {
     const User = require('../models/userModel');
-    const user = await User.findById(req.user.id);
-    filter = { user: { $in: user.following } };
+    const user = await User.findById(req.query.userId);
+    if (user && user.following) {
+       filter = { user: { $in: user.following } };
+    }
   }
 
   // If user wants liked videos
