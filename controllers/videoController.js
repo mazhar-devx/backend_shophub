@@ -12,6 +12,18 @@ exports.getAllVideos = catchAsync(async (req, res, next) => {
     filter = { user: { $in: user.following } };
   }
 
+  // If user wants liked videos
+  if (req.query.feed === 'liked' && req.query.userId) {
+    filter = { likes: req.query.userId };
+  }
+
+  // If user wants saved videos (only for own profile/auth user)
+  if (req.query.feed === 'saved' && req.query.userId) {
+    const User = require('../models/userModel');
+    const user = await User.findById(req.query.userId);
+    filter = { _id: { $in: user.savedVideos } };
+  }
+
   let query = Video.find(filter)
     .populate({
       path: 'user',
@@ -49,6 +61,20 @@ exports.toggleSaveVideo = catchAsync(async (req, res, next) => {
       : { $addToSet: { savedVideos: req.params.id } },
     { new: true }
   );
+
+  // Create notification for Save
+  if (!isSaved) {
+    const video = await Video.findById(req.params.id);
+    if (video.user.toString() !== req.user.id) {
+       const Notification = require('../models/notificationModel');
+       await Notification.create({
+         recipient: video.user,
+         sender: req.user.id,
+         type: 'save',
+         video: video._id
+       });
+    }
+  }
 
   res.status(200).json({
     status: 'success',
@@ -103,6 +129,17 @@ exports.toggleLike = catchAsync(async (req, res, next) => {
 
   await video.save({ validateBeforeSave: false });
 
+  // Create notification for Like
+  if (!isLiked && video.user.toString() !== req.user.id) {
+    const Notification = require('../models/notificationModel');
+    await Notification.create({
+      recipient: video.user,
+      sender: req.user.id,
+      type: 'like',
+      video: video._id
+    });
+  }
+
   res.status(200).json({
     status: 'success',
     data: {
@@ -132,6 +169,17 @@ exports.addComment = catchAsync(async (req, res, next) => {
 
   if (!video) {
     return next(new AppError('No video found with that ID', 404));
+  }
+
+  // Create notification for Comment
+  if (video.user._id.toString() !== req.user.id) {
+    const Notification = require('../models/notificationModel');
+    await Notification.create({
+      recipient: video.user._id,
+      sender: req.user.id,
+      type: 'comment',
+      video: video._id
+    });
   }
 
   res.status(200).json({

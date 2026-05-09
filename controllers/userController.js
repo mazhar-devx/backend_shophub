@@ -193,6 +193,14 @@ exports.followUser = catchAsync(async (req, res, next) => {
     $addToSet: { followers: req.user.id }
   });
 
+  // Create notification
+  const Notification = require('../models/notificationModel');
+  await Notification.create({
+    recipient: req.params.id,
+    sender: req.user.id,
+    type: 'follow'
+  });
+
   res.status(200).json({
     status: 'success',
     message: 'User followed successfully'
