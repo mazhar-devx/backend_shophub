@@ -15,6 +15,18 @@ const userSchema = new mongoose.Schema({
     type: String,
     maxlength: [500, 'A user description must have less than or equal to 500 characters']
   },
+  followers: [{
+    type: mongoose.Schema.ObjectId,
+    ref: 'User'
+  }],
+  following: [{
+    type: mongoose.Schema.ObjectId,
+    ref: 'User'
+  }],
+  savedVideos: [{
+    type: mongoose.Schema.ObjectId,
+    ref: 'Video'
+  }],
   email: {
     type: String,
     required: [true, 'Please provide your email'],

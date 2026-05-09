@@ -43,6 +43,10 @@ const videoSchema = new mongoose.Schema({
   views: {
     type: Number,
     default: 0
+  },
+  likesCount: {
+    type: Number,
+    default: 0
   }
 }, {
   timestamps: true,
@@ -58,6 +62,14 @@ videoSchema.virtual('likeCount').get(function() {
 // Virtual for comment count
 videoSchema.virtual('commentCount').get(function() {
   return this.comments.length;
+});
+
+// Update likesCount before saving
+videoSchema.pre('save', function(next) {
+  if (this.isModified('likes')) {
+    this.likesCount = this.likes.length;
+  }
+  next();
 });
 
 const Video = mongoose.model('Video', videoSchema);

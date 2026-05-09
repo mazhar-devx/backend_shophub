@@ -62,7 +62,7 @@ exports.createUser = (req, res) => {
 };
 
 exports.getUser = catchAsync(async (req, res, next) => {
-  const user = await User.findById(req.params.id);
+  const user = await User.findById(req.params.id).populate('followers following');
   if (!user) {
     return next(new AppError('No user found with that ID', 404));
   }

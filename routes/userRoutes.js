@@ -23,6 +23,9 @@ const { uploadUserPhoto } = require('../middleware/uploadMiddleware');
 router.patch('/updateMe', uploadUserPhoto, userController.updateMe);
 router.delete('/deleteMe', userController.deleteMe);
 
+router.post('/:id/follow', userController.followUser);
+router.post('/:id/unfollow', userController.unfollowUser);
+
 router.get('/:id', userController.getUser);
 
 router.use(authController.restrictTo('admin'));

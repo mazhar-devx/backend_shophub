@@ -3,18 +3,57 @@ const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
 
 exports.getAllVideos = catchAsync(async (req, res, next) => {
-  const videos = await Video.find()
+  let filter = {};
+  
+  // If user wants following feed
+  if (req.query.feed === 'following' && req.user) {
+    const User = require('../models/userModel');
+    const user = await User.findById(req.user.id);
+    filter = { user: { $in: user.following } };
+  }
+
+  let query = Video.find(filter)
     .populate({
       path: 'user',
-      select: 'name photo vendorName'
-    })
-    .sort('-createdAt');
+      select: 'name photo vendorName followers following'
+    });
+
+  // Sort logic
+  if (req.query.sort === 'likes') {
+    query = query.sort('-likesCount -createdAt');
+  } else {
+    query = query.sort('-createdAt');
+  }
+
+  const videos = await query;
 
   res.status(200).json({
     status: 'success',
     results: videos.length,
     data: {
       videos
+    }
+  });
+});
+
+exports.toggleSaveVideo = catchAsync(async (req, res, next) => {
+  const User = require('../models/userModel');
+  const user = await User.findById(req.user.id);
+  
+  const isSaved = user.savedVideos.includes(req.params.id);
+  
+  const updatedUser = await User.findByIdAndUpdate(
+    req.user.id,
+    isSaved 
+      ? { $pull: { savedVideos: req.params.id } } 
+      : { $addToSet: { savedVideos: req.params.id } },
+    { new: true }
+  );
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      isSaved: !isSaved
     }
   });
 });
@@ -56,19 +95,19 @@ exports.toggleLike = catchAsync(async (req, res, next) => {
 
   const isLiked = video.likes.includes(req.user.id);
   
-  const updatedVideo = await Video.findByIdAndUpdate(
-    req.params.id,
-    isLiked 
-      ? { $pull: { likes: req.user.id } } 
-      : { $addToSet: { likes: req.user.id } },
-    { new: true, runValidators: false }
-  );
+  if (isLiked) {
+    video.likes = video.likes.filter(id => id.toString() !== req.user.id.toString());
+  } else {
+    video.likes.push(req.user.id);
+  }
+
+  await video.save({ validateBeforeSave: false });
 
   res.status(200).json({
     status: 'success',
     data: {
       isLiked: !isLiked,
-      likeCount: updatedVideo.likes.length
+      likeCount: video.likes.length
     }
   });
 });

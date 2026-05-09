@@ -19,6 +19,7 @@ router.post(
 );
 
 router.post('/:id/like', videoController.toggleLike);
+router.post('/:id/save', videoController.toggleSaveVideo);
 router.post('/:id/comment', videoController.addComment);
 
 module.exports = router;
