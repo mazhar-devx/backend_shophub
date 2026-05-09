@@ -107,9 +107,11 @@ exports.createVideo = catchAsync(async (req, res, next) => {
   // Set user from auth middleware
   req.body.user = req.user.id;
 
-  // Handle tags if they come as a string
-  if (typeof req.body.tags === 'string') {
+  // Handle tags safely
+  if (req.body.tags && typeof req.body.tags === 'string') {
     req.body.tags = req.body.tags.split(',').map(tag => tag.trim()).filter(t => t !== '');
+  } else if (!req.body.tags) {
+    req.body.tags = [];
   }
 
   const newVideo = await Video.create(req.body);
