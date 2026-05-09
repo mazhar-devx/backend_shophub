@@ -55,22 +55,20 @@ exports.toggleLike = catchAsync(async (req, res, next) => {
   }
 
   const isLiked = video.likes.includes(req.user.id);
-
-  if (isLiked) {
-    // Unlike
-    video.likes = video.likes.filter(id => id.toString() !== req.user.id.toString());
-  } else {
-    // Like
-    video.likes.push(req.user.id);
-  }
-
-  await video.save();
+  
+  const updatedVideo = await Video.findByIdAndUpdate(
+    req.params.id,
+    isLiked 
+      ? { $pull: { likes: req.user.id } } 
+      : { $addToSet: { likes: req.user.id } },
+    { new: true, runValidators: false }
+  );
 
   res.status(200).json({
     status: 'success',
     data: {
       isLiked: !isLiked,
-      likeCount: video.likes.length
+      likeCount: updatedVideo.likes.length
     }
   });
 });
