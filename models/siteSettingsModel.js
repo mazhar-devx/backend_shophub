@@ -11,12 +11,24 @@ const siteSettingsSchema = new mongoose.Schema({
             default: 'Immerse yourself in premium audio quality.'
         },
         price: {
-            type: String, // String to allow 'Starting at $299' etc
+            type: String,
             default: '$299'
         },
         image: {
             type: String,
-            default: '' // Default image URL or empty
+            default: ''
+        },
+        images: {
+            type: [String],
+            default: []
+        },
+        video: {
+            type: String,
+            default: ''
+        },
+        productUrl: {
+            type: String,
+            default: ''
         },
         buttonText: {
             type: String,
@@ -34,7 +46,8 @@ const siteSettingsSchema = new mongoose.Schema({
         price: { type: Number, default: 199.99 },
         originalPrice: { type: Number, default: 399.99 },
         image: { type: String, default: '' },
-        endTime: { type: Date, default: () => new Date(Date.now() + 24 * 60 * 60 * 1000) } // Default 24h from now
+        productUrl: { type: String, default: '' },
+        endTime: { type: Date, default: () => new Date(Date.now() + 24 * 60 * 60 * 1000) }
     }
 }, { timestamps: true });
 

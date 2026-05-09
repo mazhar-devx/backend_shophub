@@ -14,6 +14,8 @@ router.use(authController.restrictTo('admin'));
 router.patch('/',
     upload.fields([
         { name: 'heroImage', maxCount: 1 },
+        { name: 'heroImages', maxCount: 10 },
+        { name: 'heroVideo', maxCount: 1 },
         { name: 'flashSaleImage', maxCount: 1 }
     ]),
     siteSettingsController.updateSettings

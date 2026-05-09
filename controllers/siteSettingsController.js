@@ -21,12 +21,19 @@ exports.getSettings = catchAsync(async (req, res, next) => {
 exports.updateSettings = catchAsync(async (req, res, next) => {
     // Handle file uploads
     if (req.files) {
+        if (!req.body.hero) req.body.hero = {};
+        if (!req.body.flashSale) req.body.flashSale = {};
+
         if (req.files.heroImage) {
-            if (!req.body.hero) req.body.hero = {};
             req.body.hero.image = req.files.heroImage[0].path;
         }
+        if (req.files.heroImages) {
+            req.body.hero.images = req.files.heroImages.map(file => file.path);
+        }
+        if (req.files.heroVideo) {
+            req.body.hero.video = req.files.heroVideo[0].path;
+        }
         if (req.files.flashSaleImage) {
-            if (!req.body.flashSale) req.body.flashSale = {};
             req.body.flashSale.image = req.files.flashSaleImage[0].path;
         }
     }
@@ -40,11 +47,15 @@ exports.updateSettings = catchAsync(async (req, res, next) => {
     }
 
     // Merging file paths back into the parsed objects if needed
-    // The parsing above might overwrite the image path we just set if the stringified JSON didn't include it or had old one
-    // So we should re-apply the image path
     if (req.files) {
         if (req.files.heroImage && typeof req.body.hero === 'object') {
             req.body.hero.image = req.files.heroImage[0].path;
+        }
+        if (req.files.heroImages && typeof req.body.hero === 'object') {
+            req.body.hero.images = req.files.heroImages.map(file => file.path);
+        }
+        if (req.files.heroVideo && typeof req.body.hero === 'object') {
+            req.body.hero.video = req.files.heroVideo[0].path;
         }
         if (req.files.flashSaleImage && typeof req.body.flashSale === 'object') {
             req.body.flashSale.image = req.files.flashSaleImage[0].path;
