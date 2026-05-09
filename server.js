@@ -46,20 +46,26 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: function (origin, callback) {
-      if (
-        !origin || 
-        allowedOrigins.includes(origin) || 
-        origin.endsWith('.vercel.app') || 
-        origin.endsWith('.shophub.pro')
-      ) {
+      // Allow local development and production domains
+      const whitelist = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://www.shophub.pro",
+        "https://shophub.pro"
+      ];
+      
+      if (!origin || whitelist.includes(origin) || origin.endsWith('.shophub.pro') || origin.endsWith('.vercel.app')) {
         callback(null, true);
       } else {
+        console.warn(`[CORS] Blocked origin: ${origin}`);
         callback(new Error("CORS not allowed"));
       }
     },
     credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], // explicitly allow all
-    allowedHeaders: ["Content-Type", "Authorization"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+    preflightContinue: false,
+    optionsSuccessStatus: 204
   })
 );
 
