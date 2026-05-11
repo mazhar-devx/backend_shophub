@@ -8,7 +8,7 @@ router.get('/', async (req, res) => {
 
         // Base URL of the frontend
         const baseUrl = 'https://www.shophub.pro';
-        const backendBaseUrl = 'https://backendshophub-production.up.railway.app';
+        const backendBaseUrl = 'https://backend-shophub.vercel.app';
 
         let xmlText = `<?xml version="1.0" encoding="UTF-8"?>\n`;
         xmlText += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n`;

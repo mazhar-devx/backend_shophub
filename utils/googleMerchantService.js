@@ -125,7 +125,7 @@ class GoogleMerchantService {
   _formatImageUrl(image) {
     if (!image) return 'https://www.shophub.pro/placeholder.svg';
     if (image.startsWith('http')) return image;
-    const backendUrl = process.env.BACKEND_URL || 'https://backendshophub-production.up.railway.app';
+    const backendUrl = process.env.BACKEND_URL || 'https://backend-shophub.vercel.app';
     return `${backendUrl}/img/products/${image}`;
   }
 }
