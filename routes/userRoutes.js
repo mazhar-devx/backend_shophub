@@ -26,12 +26,12 @@ router.delete('/deleteMe', userController.deleteMe);
 router.post('/:id/follow', userController.followUser);
 router.post('/:id/unfollow', userController.unfollowUser);
 
+router.get('/customers-stats', authController.restrictTo('admin'), userController.getCustomersWithStats);
+
 router.get('/:id', userController.getUser);
 router.get('/:id/saved-sounds', userController.getSavedSounds);
 
 router.use(authController.restrictTo('admin'));
-
-router.get('/customers-stats', userController.getCustomersWithStats);
 
 router
   .route('/')
