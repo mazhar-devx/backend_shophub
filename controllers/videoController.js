@@ -31,9 +31,9 @@ exports.getAllVideos = catchAsync(async (req, res, next) => {
     filter.tags = req.query.tag;
   }
 
-  // Filter by sound
-  if (req.query.soundId) {
-    filter.soundId = req.query.soundId;
+  // Filter by product link
+  if (req.query.productLink) {
+    filter.productLink = { $regex: req.query.productLink, $options: 'i' };
   }
 
   let query = Video.find(filter)
