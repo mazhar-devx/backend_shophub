@@ -13,9 +13,10 @@ exports.getFriends = catchAsync(async (req, res, next) => {
   // 1. User A follows User B
   // 2. User B follows User A
   // This means User B's ID is in User A's "following" AND User A's ID is in User B's "following".
+  const mongoose = require('mongoose');
   const friends = await User.find({
     _id: { $in: user.following || [] },
-    following: userId
+    following: new mongoose.Types.ObjectId(userId)
   }).select('name photo vendorName');
 
   res.status(200).json({

@@ -64,11 +64,26 @@ const whitelist = [
 app.use(
   cors({
     origin: function (origin, callback) {
-      if (!origin || whitelist.includes(origin) || origin.endsWith('.shophub.pro') || origin.endsWith('.vercel.app')) {
+    if (!origin) return callback(null, true);
+
+    try {
+      const originUrl = new URL(origin);
+      const hostname = originUrl.hostname;
+      
+      const isAllowed = whitelist.includes(origin) || 
+                       hostname === 'shophub.pro' || 
+                       hostname.endsWith('.shophub.pro') || 
+                       hostname.endsWith('.vercel.app');
+
+      if (isAllowed) {
         callback(null, true);
       } else {
-        callback(new Error("CORS not allowed"));
+        console.warn(`[CORS] Blocked origin: ${origin}`);
+        callback(new Error("Not allowed by CORS"));
       }
+    } catch (e) {
+      callback(null, false);
+    }
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -136,6 +151,19 @@ app.get("/", (req, res) => {
    Global error handler
 ===================================================== */
 app.use((err, req, res, next) => {
+  // Ensure CORS headers are present even on errors
+  const origin = req.headers.origin;
+  if (origin) {
+    try {
+      const originUrl = new URL(origin);
+      const hostname = originUrl.hostname;
+      if (whitelist.includes(origin) || hostname === 'shophub.pro' || hostname.endsWith('.shophub.pro') || hostname.endsWith('.vercel.app')) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+      }
+    } catch (e) {}
+  }
+
   if (err.name === "CastError") {
     err.statusCode = 400;
     err.message = "Invalid ID format";
@@ -151,6 +179,8 @@ app.use((err, req, res, next) => {
   res.status(err.statusCode || 500).json({
     status: (err.statusCode && err.statusCode.toString().startsWith('4')) ? "fail" : "error",
     message: err.message || "Internal Server Error",
+    // In development, send full error
+    ...(process.env.NODE_ENV === 'development' && { error: err, stack: err.stack })
   });
 });
 
