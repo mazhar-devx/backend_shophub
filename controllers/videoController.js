@@ -36,6 +36,11 @@ exports.getAllVideos = catchAsync(async (req, res, next) => {
     filter.productLink = { $regex: req.query.productLink, $options: 'i' };
   }
 
+  // Filter by soundId
+  if (req.query.soundId) {
+    filter.soundId = req.query.soundId;
+  }
+
   let query = Video.find(filter)
     .populate({
       path: 'user',

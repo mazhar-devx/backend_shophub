@@ -64,6 +64,10 @@ const videoSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  sharesCount: {
+    type: Number,
+    default: 0
+  },
   soundId: {
     type: mongoose.Schema.ObjectId,
     ref: 'Video'

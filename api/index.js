@@ -121,6 +121,7 @@ app.use("/api/v1/settings", require("../routes/siteSettingsRoutes"));
 app.use("/api/v1/ai", aiRouter);
 app.use("/api/v1/videos", require("../routes/videoRoutes"));
 app.use("/api/v1/notifications", require("../routes/notificationRoutes"));
+app.use("/api/v1/messages", require("../routes/messageRoutes"));
 app.use("/api/v1/sitemap.xml", require("../routes/sitemapRoutes"));
 
 app.get("/", (req, res) => {
