@@ -224,47 +224,61 @@ exports.getDeepBrainResponse = catchAsync(async (req, res, next) => {
     }
 
     try {
-        // 1. Fetch TOP products for knowledge (limit to 30 to avoid prompt overflow)
+        // 1. Fetch TOP products for knowledge (limit to 25 to be safe)
         const products = await Product.find({ active: { $ne: false } })
-            .select('name price category brand ratingsAverage ratingsQuantity _id slug stock')
+            .select('name price category brand ratingsAverage _id slug stock')
             .sort('-ratingsAverage')
-            .limit(30);
+            .limit(25);
 
         // 2. Create a condensed knowledge base
         const productList = products.map(p => 
-            `- ${p.name} (Category: ${p.category}, Price: ${p.price} PKR, Rating: ${p.ratingsAverage}/5, ID: ${p.slug || p._id}, Stock: ${p.stock > 0 ? 'In Stock' : 'Out of Stock'})`
+            `- ${p.name} (${p.price} PKR, ID: ${p.slug || p._id}, ${p.stock > 0 ? 'In Stock' : 'Out of Stock'})`
         ).join('\n');
 
-        const systemPrompt = `You are the "HA DEEP BRAIN" - the most advanced AI assistant for HA Store.
+        // 3. Truncate history to avoid token overflow (last 5 messages)
+        const truncatedHistory = (history || []).slice(-5);
+
+        const systemPrompt = `You are "HA DEEP BRAIN" - HA Store's premium AI.
         
-        STORE KNOWLEDGE (Top Trending Products):
+        KNOWLEDGE:
         ${productList}
 
-        CORE CAPABILITIES:
-        1. PRODUCT LOOKUP: When a user asks for a product or category, recommend matching items from the list above.
-        2. PRODUCT CARDS: If you mention a specific product, ALWAYS include its unique ID in brackets like this: [PRODUCT_ID:5f7b...] at the end of your sentence. This allows the system to show a beautiful product card.
-        3. PRICE/STOCK: Always provide current prices and stock status from the data provided.
-        4. PERSONALITY: Be ultra-premium, helpful, and use emojis! Speak Urdu, Roman Urdu, or English.
-        5. OWNER: If asked about the site/owner, say: "This masterpiece was created by mazhar.devx, a genius developer! 💻🔥"
-
-        CRITICAL: Do NOT mention products that are not in the list above. If we don't have it, say: "I couldn't find exactly that in our neural database, but check these out! 😊" and suggest something similar.`;
+        RULES:
+        1. RECOMMEND: Use the list above for product queries.
+        2. CARDS: Use [PRODUCT_ID:id] for products.
+        3. OWNER: Mazhar.devx is the genius creator!
+        4. TONE: Professional, bilingual (Urdu/English), emojis! ✨`;
 
         const messages = [
             { role: "system", content: systemPrompt },
-            ...(history || []),
+            ...truncatedHistory,
             { role: "user", content: message }
         ];
 
-        const reply = await callGroq(messages);
-        res.status(200).json({
-            status: 'success',
-            data: { reply }
-        });
+        // 4. Call Groq with a 10s timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+        try {
+            const reply = await callGroq(messages);
+            clearTimeout(timeoutId);
+            
+            res.status(200).json({
+                status: 'success',
+                data: { reply }
+            });
+        } catch (apiErr) {
+            clearTimeout(timeoutId);
+            throw apiErr;
+        }
+
     } catch (err) {
-        console.error("Deep Brain Error Details:", err.message);
+        console.error("Deep Brain Error:", err.message);
+        const isTimeout = err.name === 'AbortError';
+        
         res.status(500).json({ 
             status: 'error', 
-            message: 'Neural link interrupted. Our AI server is currently busy.',
+            message: isTimeout ? 'Neural link timed out. Try again.' : 'Neural link interrupted. Our server is busy.',
             debug: process.env.NODE_ENV === 'development' ? err.message : undefined
         });
     }
