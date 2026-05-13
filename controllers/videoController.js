@@ -38,7 +38,10 @@ exports.getAllVideos = catchAsync(async (req, res, next) => {
 
   // Filter by soundId
   if (req.query.soundId) {
-    filter.soundId = req.query.soundId;
+    filter.$or = [
+      { _id: req.query.soundId },
+      { soundId: req.query.soundId }
+    ];
   }
 
   let query = Video.find(filter)
