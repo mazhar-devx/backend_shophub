@@ -381,6 +381,14 @@ exports.replyToComment = catchAsync(async (req, res, next) => {
 exports.getUserVideos = catchAsync(async (req, res, next) => {
   const videos = await Video.find({ user: req.params.userId })
     .populate('user', 'name photo vendorName')
+    .populate({
+      path: 'comments.user',
+      select: 'name photo vendorName'
+    })
+    .populate({
+      path: 'comments.replies.user',
+      select: 'name photo vendorName'
+    })
     .sort('-createdAt');
 
   res.status(200).json({
