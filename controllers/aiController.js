@@ -223,44 +223,50 @@ exports.getDeepBrainResponse = catchAsync(async (req, res, next) => {
         return res.status(400).json({ status: 'error', message: 'Please provide a message' });
     }
 
-    // 1. Fetch ALL products for knowledge
-    const products = await Product.find({ active: { $ne: false } })
-        .select('name price category brand ratingsAverage ratingsQuantity _id slug stock');
-
-    // 2. Create a condensed knowledge base
-    const productList = products.map(p => 
-        `- ${p.name} (Category: ${p.category}, Price: ${p.price} PKR, Rating: ${p.ratingsAverage}/5, ID: ${p.slug || p._id}, Stock: ${p.stock > 0 ? 'In Stock' : 'Out of Stock'})`
-    ).join('\n');
-
-    const systemPrompt = `You are the "HA DEEP BRAIN" - the most advanced AI assistant for HA Store.
-    
-    STORE KNOWLEDGE (Active Products):
-    ${productList}
-
-    CORE CAPABILITIES:
-    1. PRODUCT LOOKUP: When a user asks for a product or category, recommend matching items from the list above.
-    2. PRODUCT CARDS: If you mention a specific product, ALWAYS include its unique ID in brackets like this: [PRODUCT_ID:5f7b...] at the end of your sentence. This allows the system to show a beautiful product card.
-    3. PRICE/STOCK: Always provide current prices and stock status from the data provided.
-    4. PERSONALITY: Be ultra-premium, helpful, and use emojis! Speak Urdu, Roman Urdu, or English.
-    5. OWNER: If asked about the site/owner, say: "This masterpiece was created by mazhar.devx, a genius developer! 💻🔥"
-
-    CRITICAL: Do NOT mention products that are not in the list above. If we don't have it, say: "I couldn't find exactly that in our neural database, but check these out! 😊" and suggest something similar.`;
-
-    const messages = [
-        { role: "system", content: systemPrompt },
-        ...(history || []),
-        { role: "user", content: message }
-    ];
-
     try {
+        // 1. Fetch TOP products for knowledge (limit to 30 to avoid prompt overflow)
+        const products = await Product.find({ active: { $ne: false } })
+            .select('name price category brand ratingsAverage ratingsQuantity _id slug stock')
+            .sort('-ratingsAverage')
+            .limit(30);
+
+        // 2. Create a condensed knowledge base
+        const productList = products.map(p => 
+            `- ${p.name} (Category: ${p.category}, Price: ${p.price} PKR, Rating: ${p.ratingsAverage}/5, ID: ${p.slug || p._id}, Stock: ${p.stock > 0 ? 'In Stock' : 'Out of Stock'})`
+        ).join('\n');
+
+        const systemPrompt = `You are the "HA DEEP BRAIN" - the most advanced AI assistant for HA Store.
+        
+        STORE KNOWLEDGE (Top Trending Products):
+        ${productList}
+
+        CORE CAPABILITIES:
+        1. PRODUCT LOOKUP: When a user asks for a product or category, recommend matching items from the list above.
+        2. PRODUCT CARDS: If you mention a specific product, ALWAYS include its unique ID in brackets like this: [PRODUCT_ID:5f7b...] at the end of your sentence. This allows the system to show a beautiful product card.
+        3. PRICE/STOCK: Always provide current prices and stock status from the data provided.
+        4. PERSONALITY: Be ultra-premium, helpful, and use emojis! Speak Urdu, Roman Urdu, or English.
+        5. OWNER: If asked about the site/owner, say: "This masterpiece was created by mazhar.devx, a genius developer! 💻🔥"
+
+        CRITICAL: Do NOT mention products that are not in the list above. If we don't have it, say: "I couldn't find exactly that in our neural database, but check these out! 😊" and suggest something similar.`;
+
+        const messages = [
+            { role: "system", content: systemPrompt },
+            ...(history || []),
+            { role: "user", content: message }
+        ];
+
         const reply = await callGroq(messages);
         res.status(200).json({
             status: 'success',
             data: { reply }
         });
     } catch (err) {
-        console.error("Deep Brain Error:", err.message);
-        res.status(500).json({ status: 'error', message: 'Neural link interrupted. Please try again.' });
+        console.error("Deep Brain Error Details:", err.message);
+        res.status(500).json({ 
+            status: 'error', 
+            message: 'Neural link interrupted. Our AI server is currently busy.',
+            debug: process.env.NODE_ENV === 'development' ? err.message : undefined
+        });
     }
 });
 
