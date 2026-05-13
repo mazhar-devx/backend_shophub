@@ -71,7 +71,7 @@ exports.sendMessage = catchAsync(async (req, res, next) => {
   });
 
   const populatedMessage = await Message.findById(message._id)
-    .populate('sender', 'name photo')
+    .populate('sender', 'name photo vendorName')
     .populate('video');
 
   res.status(201).json({

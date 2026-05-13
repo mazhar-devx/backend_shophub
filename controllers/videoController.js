@@ -282,7 +282,13 @@ exports.addComment = catchAsync(async (req, res, next) => {
       }
     },
     { new: true, runValidators: true }
-  ).populate('comments.user', 'name photo');
+  ).populate({
+    path: 'comments.user',
+    select: 'name photo vendorName'
+  }).populate({
+    path: 'comments.replies.user',
+    select: 'name photo vendorName'
+  });
 
   if (!video) {
     return next(new AppError('No video found with that ID', 404));
@@ -358,7 +364,11 @@ exports.replyToComment = catchAsync(async (req, res, next) => {
   await video.save();
 
   // Populate user data
-  await video.populate('comments.replies.user', 'name photo vendorName');
+  // Populate all user data for the whole video to ensure consistency
+  await video.populate([
+    { path: 'comments.user', select: 'name photo vendorName' },
+    { path: 'comments.replies.user', select: 'name photo vendorName' }
+  ]);
 
   res.status(200).json({
     status: 'success',
@@ -468,6 +478,12 @@ exports.updateComment = catchAsync(async (req, res, next) => {
   if (req.body.text) comment.text = req.body.text;
   
   await video.save();
+  
+  // Populate for consistent response
+  await video.populate([
+    { path: 'comments.user', select: 'name photo vendorName' },
+    { path: 'comments.replies.user', select: 'name photo vendorName' }
+  ]);
 
   res.status(200).json({
     status: 'success',
