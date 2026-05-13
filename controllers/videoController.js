@@ -285,17 +285,17 @@ exports.addComment = catchAsync(async (req, res, next) => {
       }
     },
     { new: true, runValidators: true }
-  ).populate({
-    path: 'comments.user',
-    select: 'name photo vendorName'
-  }).populate({
-    path: 'comments.replies.user',
-    select: 'name photo vendorName'
-  });
+  );
 
   if (!video) {
     return next(new AppError('No video found with that ID', 404));
   }
+
+  // Populate user data after update
+  await video.populate([
+    { path: 'comments.user', select: 'name photo vendorName' },
+    { path: 'comments.replies.user', select: 'name photo vendorName' }
+  ]);
 
   // Create notification for Comment
   if (video.user.toString() !== req.user.id) {
