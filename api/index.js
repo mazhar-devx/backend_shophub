@@ -32,18 +32,24 @@ const aiRouter = require('../routes/aiRoutes');
 const { ensureAdmin } = require("../utils/ensureAdmin");
 
 // Connect to DB once (outside handler for reuse)
-let isConnected = false;
+let dbPromise = null;
+
 const initDB = async () => {
-  if (isConnected) return;
-  try {
-    await connectDB();
-    await ensureAdmin();
-    isConnected = true;
-    console.log("Database initialized successfully ✅");
-  } catch (err) {
-    console.error("Database initialization failed ❌:", err.message);
-    throw err; // Re-throw to be caught by dbMiddleware
-  }
+  if (dbPromise) return dbPromise;
+  
+  dbPromise = (async () => {
+    try {
+      await connectDB();
+      await ensureAdmin();
+      console.log("Database initialized successfully ✅");
+    } catch (err) {
+      console.error("Database initialization failed ❌:", err.message);
+      dbPromise = null; // Reset promise so we can try again on next request
+      throw err;
+    }
+  })();
+
+  return dbPromise;
 };
 
 // Middleware to ensure DB is connected before processing requests
@@ -52,6 +58,14 @@ const dbMiddleware = async (req, res, next) => {
     await initDB();
     next();
   } catch (err) {
+    // If it's a timeout, return a more helpful error
+    if (err.message.includes('timeout')) {
+      return res.status(503).json({
+        status: 'error',
+        message: 'Database connection timed out. Please check IP whitelisting and cluster status.',
+        error: err.message
+      });
+    }
     next(err);
   }
 };
