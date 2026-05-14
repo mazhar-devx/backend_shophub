@@ -18,6 +18,14 @@ const {
 // Load env
 dotenv.config({ path: path.resolve(__dirname, "../config.env") });
 
+// Validate critical environment variables for Vercel
+const CRITICAL_VARS = ["MONGO_URI", "JWT_SECRET"];
+CRITICAL_VARS.forEach((v) => {
+  if (!process.env[v]) {
+    console.error(`CRITICAL ERROR: Environment variable ${v} is missing! ❌`);
+  }
+});
+
 // DB
 const connectDB = require("../config/db");
 const aiRouter = require('../routes/aiRoutes');
@@ -27,9 +35,15 @@ const { ensureAdmin } = require("../utils/ensureAdmin");
 let isConnected = false;
 const initDB = async () => {
   if (isConnected) return;
-  await connectDB();
-  await ensureAdmin();
-  isConnected = true;
+  try {
+    await connectDB();
+    await ensureAdmin();
+    isConnected = true;
+    console.log("Database initialized successfully ✅");
+  } catch (err) {
+    console.error("Database initialization failed ❌:", err.message);
+    throw err; // Re-throw to be caught by dbMiddleware
+  }
 };
 
 // Middleware to ensure DB is connected before processing requests
@@ -185,5 +199,7 @@ app.use((err, req, res, next) => {
 });
 
 // Export the app for Vercel
+// Vercel's @vercel/node builder handles the Express app object directly
 module.exports = app;
+// Keep the handler for compatibility if needed elsewhere
 module.exports.handler = serverless(app);
