@@ -28,7 +28,8 @@ exports.updateSettings = catchAsync(async (req, res, next) => {
             req.body.hero.image = req.files.heroImage[0].path;
         }
         if (req.files.heroImages) {
-            req.body.hero.images = req.files.heroImages.map(file => file.path);
+            const newImages = req.files.heroImages.map(file => file.path);
+            req.body.hero.images = Array.isArray(req.body.hero.images) ? [...req.body.hero.images, ...newImages] : newImages;
         }
         if (req.files.heroVideo) {
             req.body.hero.video = req.files.heroVideo[0].path;
@@ -52,7 +53,8 @@ exports.updateSettings = catchAsync(async (req, res, next) => {
             req.body.hero.image = req.files.heroImage[0].path;
         }
         if (req.files.heroImages && typeof req.body.hero === 'object') {
-            req.body.hero.images = req.files.heroImages.map(file => file.path);
+            const newImages = req.files.heroImages.map(file => file.path);
+            req.body.hero.images = Array.isArray(req.body.hero.images) ? [...req.body.hero.images, ...newImages] : newImages;
         }
         if (req.files.heroVideo && typeof req.body.hero === 'object') {
             req.body.hero.video = req.files.heroVideo[0].path;

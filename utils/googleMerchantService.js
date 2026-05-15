@@ -99,18 +99,24 @@ class GoogleMerchantService {
 
       console.log(`[GoogleMerchant] Product synced via Content API: ${product.name}`);
       
-      product.googleMerchantId = res.data.id;
-      product.googleMerchantSyncStatus = 'synced';
-      product.googleMerchantLastError = null;
-      await product.save({ validateBeforeSave: false });
+      await product.updateOne({ 
+        $set: { 
+          googleMerchantId: res.data.id,
+          googleMerchantSyncStatus: 'synced',
+          googleMerchantLastError: null
+        } 
+      });
 
       return { status: 'success', data: res.data };
     } catch (error) {
       console.error(`[GoogleMerchant] Content API Sync error for ${product.name}:`, error.message);
       
-      product.googleMerchantSyncStatus = 'error';
-      product.googleMerchantLastError = error.message;
-      await product.save({ validateBeforeSave: false });
+      await product.updateOne({ 
+        $set: { 
+          googleMerchantSyncStatus: 'error',
+          googleMerchantLastError: error.message
+        } 
+      });
 
       return { status: 'error', message: error.message };
     }
