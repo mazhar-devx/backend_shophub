@@ -6,14 +6,12 @@ const connectDB = async () => {
       throw new Error("MONGO_URI environment variable is not defined ❌");
     }
 
-    // Connection options for maximum compatibility and reliability
+    // Connection options optimized for serverless (Vercel)
     const options = {
-      serverSelectionTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 15000, // Increased timeout to 15s for cold starts
       socketTimeoutMS: 45000,
-      // Explicitly enable TLS/SSL
-      tls: true,
-      ssl: true,
-      // Some environments need this for stable handshakes
+      family: 4, // Force IPv4 to avoid IPv6 resolution issues
+      // TLS is handled automatically by mongodb+srv://
       retryWrites: true,
       w: "majority",
     };
