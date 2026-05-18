@@ -159,6 +159,56 @@ exports.createProduct = catchAsync(async (req, res, next) => {
 
   const newProduct = await Product.create(req.body);
 
+  // === AUTOMATIC SEO BLOG GENERATION ===
+  try {
+    const Blog = require('../models/blogModel');
+    // Generate a quick hook based on category
+    const hooks = {
+      'electronics': `Looking for the ultimate tech upgrade? The ${newProduct.name} might just be exactly what you need.`,
+      'fashion': `Elevate your style with the stunning new ${newProduct.name}. Here's why it's trending this season.`,
+      'default': `Discover the incredible features of the ${newProduct.name}. A top-tier choice for those who value quality.`
+    };
+    
+    const introHook = hooks[newProduct.category?.toLowerCase()] || hooks['default'];
+    
+    // Construct rich HTML content
+    const blogContent = `
+      <p class="lead">${introHook}</p>
+      
+      <h2>Why the ${newProduct.name}?</h2>
+      <p>${newProduct.description}</p>
+      
+      <h2>Key Specifications</h2>
+      <ul>
+        ${newProduct.brand ? `<li><strong>Brand:</strong> ${newProduct.brand}</li>` : ''}
+        ${newProduct.category ? `<li><strong>Category:</strong> ${newProduct.category}</li>` : ''}
+      </ul>
+      
+      <p>Priced at an incredible <strong>${newProduct.currency || 'PKR'} ${newProduct.price}</strong>, this is an investment in unparalleled quality.</p>
+      
+      <p><a href="https://www.shophub.pro/product/${newProduct.slug || newProduct._id}" style="color: #06B6D4; font-weight: bold; text-decoration: underline;">Shop the ${newProduct.name} exclusively on ShopHub.pro &rarr;</a></p>
+    `;
+
+    // Construct SEO description (first 150 chars of description)
+    const seoDesc = newProduct.description.substring(0, 150) + "...";
+
+    await Blog.create({
+      title: `${newProduct.name} - Ultimate Review & Guide`,
+      content: blogContent,
+      seoDescription: seoDesc,
+      image: newProduct.image || (newProduct.images && newProduct.images[0]) || 'https://www.shophub.pro/logo.png',
+      category: 'Product Spotlight',
+      author: req.user ? req.user.name : 'ShopHub Admin',
+      tags: newProduct.tags || [newProduct.category],
+      linkedProduct: newProduct._id,
+      isPublished: true
+    });
+  } catch (err) {
+    // We don't want the product creation to fail if blog creation fails
+    console.error('Failed to auto-generate blog for product:', err.message);
+  }
+  // =====================================
+
   res.status(201).json({
     status: 'success',
     data: {
