@@ -88,6 +88,26 @@ const productSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  isExpensive: {
+    type: Boolean,
+    default: false
+  },
+  isWebsite: {
+    type: Boolean,
+    default: false
+  },
+  liveLink: {
+    type: String,
+    trim: true
+  },
+  contactEmail: {
+    type: String,
+    trim: true
+  },
+  whatsappNumber: {
+    type: String,
+    trim: true
+  },
   tags: [{
     type: String,
     trim: true
