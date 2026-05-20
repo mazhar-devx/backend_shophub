@@ -40,7 +40,8 @@ router.get('/', async (req, res) => {
         // Products
         products.forEach(product => {
             xmlText += `  <url>\n`;
-            xmlText += `    <loc>${baseUrl}/product/${product._id}</loc>\n`;
+            const productIdentifier = product.slug ? product.slug : product._id;
+            xmlText += `    <loc>${baseUrl}/product/${productIdentifier}</loc>\n`;
             if (product.updatedAt) xmlText += `    <lastmod>${product.updatedAt.toISOString()}</lastmod>\n`;
             
             const allImages = [];

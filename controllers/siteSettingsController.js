@@ -5,7 +5,7 @@ exports.getSettings = catchAsync(async (req, res, next) => {
     // Ensure we always get/create the SAME document. 
     // findOneAndUpdate with upsert=true and an empty filter {} is the safest way to ensure a singleton.
     let settings = await SiteSettings.findOneAndUpdate({}, {}, {
-        new: true,
+        returnDocument: "after",
         upsert: true,
         setDefaultsOnInsert: true
     });
@@ -66,7 +66,7 @@ exports.updateSettings = catchAsync(async (req, res, next) => {
 
     // Update the singleton document
     const settings = await SiteSettings.findOneAndUpdate({}, req.body, {
-        new: true,
+        returnDocument: "after",
         upsert: true,
         runValidators: true,
         setDefaultsOnInsert: true
