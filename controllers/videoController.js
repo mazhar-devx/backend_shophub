@@ -413,7 +413,7 @@ exports.saveSound = catchAsync(async (req, res, next) => {
   const user = await User.findById(req.user.id);
   const videoId = req.params.id; // We use the original video ID as the sound ID
 
-  const isSaved = user.savedSounds.includes(videoId);
+  const isSaved = user.savedSounds.map(id => id.toString()).includes(videoId.toString());
 
   if (isSaved) {
     await User.findByIdAndUpdate(req.user.id, { $pull: { savedSounds: videoId } });
