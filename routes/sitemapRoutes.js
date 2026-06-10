@@ -16,7 +16,6 @@ router.get('/', async (req, res) => {
         xmlText += `        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1" \n`;
         xmlText += `        xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">\n`;
 
-        // Add static core routes
         const staticRoutes = [
             { path: '/', priority: '1.0', changefreq: 'daily' },
             { path: '/products', priority: '0.9', changefreq: 'daily' },
@@ -25,8 +24,9 @@ router.get('/', async (req, res) => {
             { path: '/watch-me', priority: '1.0', changefreq: 'always' },
             { path: '/mazhar.devx', priority: '0.9', changefreq: 'daily' },
             { path: '/privacy-policy', priority: '0.3', changefreq: 'monthly' },
-            { path: '/terms-and-conditions', priority: '0.3', changefreq: 'monthly' },
-            { path: '/about', priority: '0.5', changefreq: 'monthly' }
+            { path: '/terms-of-service', priority: '0.3', changefreq: 'monthly' },
+            { path: '/return-policy', priority: '0.5', changefreq: 'monthly' },
+            { path: '/about-us', priority: '0.5', changefreq: 'monthly' }
         ];
 
         staticRoutes.forEach(route => {
@@ -60,7 +60,8 @@ router.get('/', async (req, res) => {
                 xmlText += `    </image:image>\n`;
             });
 
-            xmlText += `    <priority>0.8</priority>\n`;
+            xmlText += `    <changefreq>daily</changefreq>\n`;
+            xmlText += `    <priority>0.9</priority>\n`;
             xmlText += `  </url>\n`;
         });
 
@@ -75,7 +76,8 @@ router.get('/', async (req, res) => {
             xmlText += `      <video:content_loc>${video.videoUrl.startsWith('http') ? video.videoUrl : `${backendBaseUrl}/uploads/${video.videoUrl}`}</video:content_loc>\n`;
             xmlText += `      <video:publication_date>${(video.createdAt || new Date()).toISOString()}</video:publication_date>\n`;
             xmlText += `    </video:video>\n`;
-            xmlText += `    <priority>0.7</priority>\n`;
+            xmlText += `    <changefreq>weekly</changefreq>\n`;
+            xmlText += `    <priority>0.8</priority>\n`;
             xmlText += `  </url>\n`;
         });
 

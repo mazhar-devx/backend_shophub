@@ -64,12 +64,17 @@ exports.getAllVideos = catchAsync(async (req, res, next) => {
     if (req.query.userId && !filter.user) {
       filter.user = { $ne: req.query.userId };
     }
-    // We fetch without strict sort here to allow full shuffling later, 
-    // but we can keep it for now as a base query, then shuffle in JS.
     query = query.sort('-likesCount -createdAt');
   } else {
     query = query.sort('-createdAt');
   }
+
+  // Pagination support
+  const page = parseInt(req.query.page, 10) || 1;
+  const limit = parseInt(req.query.limit, 10) || 15;
+  const skip = (page - 1) * limit;
+
+  query = query.skip(skip).limit(limit);
 
   let videos = await query;
 
