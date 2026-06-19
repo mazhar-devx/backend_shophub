@@ -387,8 +387,6 @@ exports.restrictTo = (...roles) => {
   };
 };
 
-const sendEmail = require('../utils/email');
-
 // ... (existing imports)
 
 exports.forgotPassword = async (req, res, next) => {
