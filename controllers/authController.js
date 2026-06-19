@@ -50,6 +50,7 @@ exports.signup = async (req, res, next) => {
     // Print OTP to terminal for debugging/development
     console.log(`\n\n[DEV] OTP FOR ${newUser.email}: ${otp}\n\n`);
 
+    let message = 'OTP sent to email!';
     try {
       await sendEmail({
         email: newUser.email,
@@ -57,14 +58,21 @@ exports.signup = async (req, res, next) => {
         message: `Your verification code is: ${otp}\nIt is valid for 10 minutes.`
       });
     } catch (err) {
-      console.warn('Email could not be sent. Check your config.env settings. Proceeding because OTP is in terminal.');
+      console.warn('Email could not be sent. Check your config.env settings.');
+      message = `Email server not configured (add EMAIL_USERNAME and EMAIL_PASSWORD). For testing, your OTP is: ${otp}`;
     }
 
     res.status(201).json({
       status: 'success',
-      message: 'OTP sent to email!'
+      message
     });
   } catch (err) {
+    if (err.code === 11000) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'This email is already registered. Please login instead.'
+      });
+    }
     res.status(400).json({
       status: 'fail',
       message: err.message
@@ -423,21 +431,13 @@ exports.forgotPassword = async (req, res, next) => {
   } catch (err) {
     console.warn('Email send failed. Check config.env. Proceeding because OTP is in terminal.', err.message);
 
-    if (process.env.NODE_ENV === 'development') {
-      return res.status(200).json({
-        status: 'success',
-        message: 'Dev: Email failed (check console), but OTP flow continues.',
-        devOTP: otp
-      });
-    }
-
     user.otp = undefined;
     user.otpExpires = undefined;
     await user.save({ validateBeforeSave: false });
 
-    return res.status(500).json({
+    return res.status(400).json({
       status: 'error',
-      message: 'There was an error sending the email. Try again later!'
+      message: `Email server not configured. Please add EMAIL_USERNAME and EMAIL_PASSWORD to Vercel env variables. For testing, your OTP is: ${otp}`
     });
   }
 };
