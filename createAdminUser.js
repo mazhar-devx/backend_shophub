@@ -13,10 +13,7 @@ if (!DB) {
 }
 
 mongoose
-    .connect(DB, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-    })
+    .connect(DB)
     .then(async () => {
         console.log('DB Connected. Creating Admin User...');
 
@@ -29,6 +26,7 @@ mongoose
         if (admin) {
             console.log('Admin user already exists. Updating role...');
             admin.role = 'admin';
+            admin.isVerified = true;
             admin.password = adminPass;
             admin.passwordConfirm = adminPass;
             await admin.save();
@@ -39,7 +37,8 @@ mongoose
                 email: adminEmail,
                 password: adminPass,
                 passwordConfirm: adminPass,
-                role: 'admin'
+                role: 'admin',
+                isVerified: true
             });
             console.log('Admin user created successfully.');
         }

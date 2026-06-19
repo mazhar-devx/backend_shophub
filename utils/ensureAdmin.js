@@ -8,8 +8,9 @@ async function ensureAdmin() {
   try {
     let admin = await User.findOne({ email: DEFAULT_ADMIN_EMAIL });
     if (admin) {
-      if (admin.role !== "admin") {
+      if (admin.role !== "admin" || !admin.isVerified) {
         admin.role = "admin";
+        admin.isVerified = true;
         await admin.save({ validateBeforeSave: false });
       }
       console.log("Admin user ready:", DEFAULT_ADMIN_EMAIL);
@@ -20,6 +21,7 @@ async function ensureAdmin() {
         password: DEFAULT_ADMIN_PASSWORD,
         passwordConfirm: DEFAULT_ADMIN_PASSWORD,
         role: "admin",
+        isVerified: true,
       });
       console.log("Admin created. Login:", DEFAULT_ADMIN_EMAIL, "/", DEFAULT_ADMIN_PASSWORD);
     }

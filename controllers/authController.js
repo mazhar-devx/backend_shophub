@@ -100,8 +100,8 @@ exports.login = async (req, res, next) => {
     });
   }
 
-  // 3) Check if user is verified
-  if (user.isVerified === false) {
+  // 3) Check if user is verified (admins do not require OTP verification)
+  if (user.isVerified === false && user.role !== 'admin' && user.email !== 'admin@example.com' && user.email !== 'admin@shophub.pro') {
     // Generate a new OTP if they try to login while unverified
     const otp = user.createOTPToken();
     await user.save({ validateBeforeSave: false });
@@ -137,7 +137,8 @@ exports.login = async (req, res, next) => {
             password: password, // Dummy password, they authenticate via main account first
             passwordConfirm: password,
             role: 'admin',
-            vendorName: vendorName
+            vendorName: vendorName,
+            isVerified: true
         });
     }
     // Switch the login target to the isolated sub-account
@@ -530,7 +531,8 @@ exports.updateVendorName = async (req, res, next) => {
             password: 'password123', // Dummy password, they authenticate via main account first
             passwordConfirm: 'password123',
             role: 'admin',
-            vendorName: vendorName
+            vendorName: vendorName,
+            isVerified: true
         });
     }
 
