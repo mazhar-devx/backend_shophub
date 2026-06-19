@@ -55,11 +55,13 @@ exports.getAllProducts = catchAsync(async (req, res, next) => {
   }
 
   // 6) Pagination
-  const page = req.query.page * 1 || 1;
-  const limit = req.query.limit * 1 || 12;
-  const skip = (page - 1) * limit;
+  if (req.query.limit !== 'all') {
+    const page = req.query.page * 1 || 1;
+    const limit = req.query.limit * 1 || 12;
+    const skip = (page - 1) * limit;
 
-  query = query.skip(skip).limit(limit);
+    query = query.skip(skip).limit(limit);
+  }
 
   // EXECUTE QUERY
   const products = await query;
@@ -93,6 +95,12 @@ exports.getProduct = catchAsync(async (req, res, next) => {
   if (!product) {
     return next(new AppError('No product found with that ID or Slug', 404));
   }
+
+  // Increment views
+  await Product.updateOne({ _id: product._id }, { $inc: { views: 1 } });
+  
+  // Update local object so response has the updated count
+  product.views = (product.views || 0) + 1;
 
   res.status(200).json({
     status: 'success',

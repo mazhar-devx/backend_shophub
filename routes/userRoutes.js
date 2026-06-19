@@ -5,12 +5,14 @@ const authController = require('../controllers/authController');
 const router = express.Router();
 
 router.post('/signup', authController.signup);
+router.post('/verify-otp', authController.verifyOTP);
 router.post('/login', authController.login);
 router.post('/google', authController.googleLogin);
+router.post('/firebase-sync', authController.firebaseSync);
 router.get('/logout', authController.logout);
 
 router.post('/forgotPassword', authController.forgotPassword);
-router.patch('/resetPassword/:token', authController.resetPassword);
+router.patch('/resetPassword', authController.resetPassword);
 
 // Protect all routes after this middleware
 router.use(authController.protect);

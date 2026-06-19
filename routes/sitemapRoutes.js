@@ -2,11 +2,13 @@ const express = require('express');
 const router = express.Router();
 const Product = require('../models/productModel');
 const Video = require('../models/videoModel');
+const Blog = require('../models/blogModel');
 
 router.get('/', async (req, res) => {
     try {
         const products = await Product.find({}).select('slug images image updatedAt name description price');
         const videos = await Video.find({}).select('name description videoUrl thumbnailUrl createdAt updatedAt user').populate('user', 'name vendorName photo');
+        const blogs = await Blog.find({ isPublished: true }).select('slug title updatedAt image');
 
         const baseUrl = 'https://www.shophub.pro';
         const backendBaseUrl = 'https://backend-shophub.vercel.app';
@@ -78,6 +80,24 @@ router.get('/', async (req, res) => {
             xmlText += `    </video:video>\n`;
             xmlText += `    <changefreq>weekly</changefreq>\n`;
             xmlText += `    <priority>0.8</priority>\n`;
+            xmlText += `  </url>\n`;
+        });
+
+        // Blogs
+        blogs.forEach(blog => {
+            xmlText += `  <url>\n`;
+            const blogIdentifier = blog.slug ? blog.slug : blog._id;
+            xmlText += `    <loc>${baseUrl}/blog/${blogIdentifier}</loc>\n`;
+            if (blog.updatedAt) xmlText += `    <lastmod>${blog.updatedAt.toISOString()}</lastmod>\n`;
+            if (blog.image) {
+                let imgUrl = blog.image.startsWith('http') ? blog.image : `${backendBaseUrl}${blog.image}`;
+                xmlText += `    <image:image>\n`;
+                xmlText += `      <image:loc>${imgUrl}</image:loc>\n`;
+                xmlText += `      <image:title>${blog.title}</image:title>\n`;
+                xmlText += `    </image:image>\n`;
+            }
+            xmlText += `    <changefreq>weekly</changefreq>\n`;
+            xmlText += `    <priority>0.7</priority>\n`;
             xmlText += `  </url>\n`;
         });
 

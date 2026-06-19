@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const { promisify } = require('util');
 const jwt = require('jsonwebtoken');
 const User = require('../models/userModel');
+const sendEmail = require('../utils/email');
 
 const signToken = id => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -42,7 +43,27 @@ exports.signup = async (req, res, next) => {
       passwordConfirm: req.body.passwordConfirm
     });
 
-    createSendToken(newUser, 201, res);
+    // Generate 6-digit OTP
+    const otp = newUser.createOTPToken();
+    await newUser.save({ validateBeforeSave: false });
+
+    // Print OTP to terminal for debugging/development
+    console.log(`\n\n[DEV] OTP FOR ${newUser.email}: ${otp}\n\n`);
+
+    try {
+      await sendEmail({
+        email: newUser.email,
+        subject: 'Your Account Verification Code',
+        message: `Your verification code is: ${otp}\nIt is valid for 10 minutes.`
+      });
+    } catch (err) {
+      console.warn('Email could not be sent. Check your config.env settings. Proceeding because OTP is in terminal.');
+    }
+
+    res.status(201).json({
+      status: 'success',
+      message: 'OTP sent to email!'
+    });
   } catch (err) {
     res.status(400).json({
       status: 'fail',
@@ -71,6 +92,28 @@ exports.login = async (req, res, next) => {
     });
   }
 
+  // 3) Check if user is verified
+  if (user.isVerified === false) {
+    // Generate a new OTP if they try to login while unverified
+    const otp = user.createOTPToken();
+    await user.save({ validateBeforeSave: false });
+    
+    console.log(`\n\n[DEV] NEW OTP FOR ${user.email}: ${otp}\n\n`);
+    
+    try {
+      await sendEmail({
+        email: user.email,
+        subject: 'Your Account Verification Code',
+        message: `Your verification code is: ${otp}\nIt is valid for 10 minutes.`
+      });
+    } catch (e) {}
+
+    return res.status(401).json({
+      status: 'unverified',
+      message: 'Please verify your email to login.'
+    });
+  }
+
   // 3) Admin Vendor Isolation / Sub-accounts
   let loginUser = user;
 
@@ -95,6 +138,73 @@ exports.login = async (req, res, next) => {
 
   // 4) If everything ok, send token to client
   createSendToken(loginUser, 200, res);
+};
+
+exports.verifyOTP = async (req, res, next) => {
+  try {
+    const { email, otp } = req.body;
+    
+    if (!email || !otp) {
+      return res.status(400).json({ status: 'fail', message: 'Please provide email and OTP' });
+    }
+
+    // Hash the entered OTP to compare with DB
+    const hashedOTP = crypto.createHash('sha256').update(otp).digest('hex');
+
+    const user = await User.findOne({ 
+      email, 
+      otp: hashedOTP, 
+      otpExpires: { $gt: Date.now() } 
+    });
+
+    if (!user) {
+      return res.status(400).json({ status: 'fail', message: 'OTP is invalid or has expired' });
+    }
+
+    user.isVerified = true;
+    user.otp = undefined;
+    user.otpExpires = undefined;
+    await user.save({ validateBeforeSave: false });
+
+    // 4) If everything ok, send token to client
+    createSendToken(user, 200, res);
+  } catch (err) {
+    res.status(400).json({ status: 'fail', message: err.message });
+  }
+};
+
+exports.firebaseSync = async (req, res, next) => {
+  const { email, name, uid, password } = req.body;
+  
+  if (!email || !uid) {
+    return res.status(400).json({
+      status: 'fail',
+      message: 'Email and UID are required.'
+    });
+  }
+
+  try {
+    let user = await User.findOne({ email }).select('+password');
+    
+    if (!user) {
+      // Create new user mapped from Firebase
+      user = await User.create({
+        name: name || 'User',
+        email,
+        password: password || uid,
+        passwordConfirm: password || uid
+      });
+    } else if (password) {
+      // If a new password is provided (e.g. they reset their password via Firebase), sync it
+      user.password = password;
+      user.passwordConfirm = password;
+      await user.save({ validateBeforeSave: false });
+    }
+    
+    createSendToken(user, 200, res);
+  } catch (err) {
+    res.status(400).json({ status: 'fail', message: err.message });
+  }
 };
 
 const { OAuth2Client } = require('google-auth-library');
@@ -287,53 +397,44 @@ exports.forgotPassword = async (req, res, next) => {
   if (!user) {
     return res.status(404).json({
       status: 'fail',
-      message: 'There is no user with email address.'
+      message: 'There is no user with that email address.'
     });
   }
 
-  // 2) Generate the random reset token
-  const resetToken = user.createPasswordResetToken();
+  // 2) Generate 6-digit OTP
+  const otp = user.createOTPToken();
   await user.save({ validateBeforeSave: false });
 
+  // Print OTP to terminal for debugging
+  console.log(`\n\n[DEV] PASSWORD RESET OTP FOR ${user.email}: ${otp}\n\n`);
+
   // 3) Send it to user's email
-  const resetURL = process.env.NODE_ENV === 'development'
-    ? `http://localhost:5173/reset-password/${resetToken}`
-    : `${req.protocol}://${req.get('host')}/reset-password/${resetToken}`;
-
-  const message = `Forgot your password? Submit a PATCH request with your new password and passwordConfirm to: ${resetURL}.\nIf you didn't forget your password, please ignore this email!`;
-
-  if (process.env.NODE_ENV === 'development') {
-    console.log('Main Reset URL:', resetURL);
-  }
+  const message = `Forgot your password? Your 6-digit password reset code is: ${otp}.\nIt is valid for 10 minutes.\nIf you didn't forget your password, please ignore this email!`;
 
   try {
     await sendEmail({
       email: user.email,
-      subject: 'Your password reset token (valid for 10 min)',
+      subject: 'Your password reset code (valid for 10 min)',
       message
     });
 
     res.status(200).json({
       status: 'success',
-      message: 'Token sent to email!'
+      message: 'OTP sent to email!'
     });
   } catch (err) {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Dev Mode: Email server not configured. Simulating success...');
+    console.warn('Email send failed. Check config.env. Proceeding because OTP is in terminal.', err.message);
 
-      const resetURL = `http://localhost:5173/reset-password/${resetToken}`;
+    if (process.env.NODE_ENV === 'development') {
       return res.status(200).json({
         status: 'success',
-        message: 'Dev: Email failed (check console), but flow continues.',
-        resetToken, // Include token for frontend auto-redirect
-        resetURL    // Include full URL for convenience
+        message: 'Dev: Email failed (check console), but OTP flow continues.',
+        devOTP: otp
       });
     }
 
-    console.error('Email send failed:', err);
-
-    user.passwordResetToken = undefined;
-    user.passwordResetExpires = undefined;
+    user.otp = undefined;
+    user.otpExpires = undefined;
     await user.save({ validateBeforeSave: false });
 
     return res.status(500).json({
@@ -344,31 +445,40 @@ exports.forgotPassword = async (req, res, next) => {
 };
 
 exports.resetPassword = async (req, res, next) => {
-  // 1) Get user based on the token
-  const hashedToken = crypto
+  const { email, otp, password, passwordConfirm } = req.body;
+
+  if (!email || !otp || !password || !passwordConfirm) {
+    return res.status(400).json({ status: 'fail', message: 'Please provide email, OTP, and new passwords' });
+  }
+
+  // 1) Get user based on the hashed OTP
+  const hashedOTP = crypto
     .createHash('sha256')
-    .update(req.params.token)
+    .update(otp)
     .digest('hex');
 
   const user = await User.findOne({
-    passwordResetToken: hashedToken,
-    passwordResetExpires: { $gt: Date.now() }
+    email,
+    otp: hashedOTP,
+    otpExpires: { $gt: Date.now() }
   });
 
   // 2) If token has not expired, and there is user, set the new password
   if (!user) {
     return res.status(400).json({
       status: 'fail',
-      message: 'Token is invalid or has expired'
+      message: 'OTP is invalid or has expired'
     });
   }
-  user.password = req.body.password;
-  user.passwordConfirm = req.body.passwordConfirm;
-  user.passwordResetToken = undefined;
-  user.passwordResetExpires = undefined;
+  
+  user.password = password;
+  user.passwordConfirm = passwordConfirm;
+  user.otp = undefined;
+  user.otpExpires = undefined;
+  user.isVerified = true; // Ensure they are verified if they reset their password
   await user.save();
 
-  // 3) Update changedPasswordAt property for the user
+  // 3) Update changedPasswordAt property for the user (handled by pre-save hook)
   // 4) Log the user in, send JWT
   createSendToken(user, 200, res);
 };

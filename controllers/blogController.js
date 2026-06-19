@@ -35,11 +35,13 @@ exports.getAllBlogs = catchAsync(async (req, res, next) => {
   }
 
   // 4) Pagination
-  const page = req.query.page * 1 || 1;
-  const limit = req.query.limit * 1 || 12;
-  const skip = (page - 1) * limit;
+  if (req.query.limit !== 'all') {
+    const page = req.query.page * 1 || 1;
+    const limit = req.query.limit * 1 || 12;
+    const skip = (page - 1) * limit;
 
-  query = query.skip(skip).limit(limit);
+    query = query.skip(skip).limit(limit);
+  }
 
   const blogs = await query.populate('linkedProduct', 'name price image slug');
 

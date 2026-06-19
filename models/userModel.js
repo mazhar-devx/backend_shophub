@@ -75,6 +75,12 @@ const userSchema = new mongoose.Schema({
   passwordChangedAt: Date,
   passwordResetToken: String,
   passwordResetExpires: Date,
+  otp: String,
+  otpExpires: Date,
+  isVerified: {
+    type: Boolean,
+    default: false
+  },
   active: {
     type: Boolean,
     default: true,
@@ -158,6 +164,20 @@ userSchema.methods.createPasswordResetToken = function () {
   this.passwordResetExpires = Date.now() + 10 * 60 * 1000;
 
   return resetToken;
+};
+
+// Create 6-digit OTP
+userSchema.methods.createOTPToken = function () {
+  const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+  this.otp = crypto
+    .createHash('sha256')
+    .update(otpCode)
+    .digest('hex');
+
+  this.otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+  return otpCode;
 };
 
 const User = mongoose.model('User', userSchema);
