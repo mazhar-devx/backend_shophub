@@ -167,6 +167,7 @@ app.use("/api/v1/notifications", require("../routes/notificationRoutes"));
 app.use("/api/v1/messages", require("../routes/messageRoutes"));
 app.use("/api/v1/blogs", require("../routes/blogRoutes"));
 app.use("/api/v1/sitemap.xml", require("../routes/sitemapRoutes"));
+app.use("/api/v1/seo", require("../routes/seoRoutes"));
 
 app.get("/", (req, res) => {
   res.status(200).json({

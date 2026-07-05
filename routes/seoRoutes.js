@@ -1,0 +1,294 @@
+const express = require('express');
+const mongoose = require('mongoose');
+const router = express.Router();
+const Product = require('../models/productModel');
+const Video = require('../models/videoModel');
+const Blog = require('../models/blogModel');
+const User = require('../models/userModel');
+
+// In-memory cache for the index.html template
+let cachedHtml = null;
+let cacheTime = 0;
+
+// Helper to escape HTML characters
+function escapeHtml(unsafe) {
+  if (!unsafe) return '';
+  return unsafe
+    .toString()
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+// Function to fetch the production index.html template
+const getIndexTemplate = async () => {
+  const now = Date.now();
+  // Cache the template for 10 minutes to minimize network requests
+  if (cachedHtml && (now - cacheTime < 10 * 60 * 1000)) {
+    return cachedHtml;
+  }
+  
+  try {
+    const response = await fetch('https://www.shophub.pro/index.html');
+    if (!response.ok) {
+      throw new Error(`Failed to fetch index.html: ${response.statusText}`);
+    }
+    cachedHtml = await response.text();
+    cacheTime = now;
+    return cachedHtml;
+  } catch (error) {
+    console.error("Error fetching index.html template:", error);
+    if (cachedHtml) return cachedHtml; // Fallback to expired cache if fetch fails
+    // Ultimate fallback if no template has ever been cached
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>ShopHub</title></head><body><div id="root"></div></body></html>`;
+  }
+};
+
+router.get('/', async (req, res) => {
+  const { type, id, slug } = req.query;
+  const baseUrl = 'https://www.shophub.pro';
+  const backendBaseUrl = 'https://backend-shophub.vercel.app';
+
+  // Default SEO Values
+  let title = "ShopHub - Pakistan's #1 Luxury Shopping & Social Marketplace";
+  let description = "ShopHub is your premium destination for high-end fashion, electronics, and immersive social shopping. Experience the future of e-commerce in Pakistan.";
+  let image = `${baseUrl}/logo.png`;
+  let url = baseUrl;
+  let pageType = 'website';
+  let twitterCard = 'summary_large_image';
+  let videoUrl = null;
+  const schemas = [];
+
+  try {
+    const templateHtml = await getIndexTemplate();
+    let queryId = id || slug;
+
+    if (type === 'product' && queryId) {
+      let product = null;
+      if (mongoose.Types.ObjectId.isValid(queryId)) {
+        product = await Product.findById(queryId);
+      }
+      if (!product) {
+        product = await Product.findOne({ slug: queryId });
+      }
+
+      if (product) {
+        title = `${product.name} | ShopHub`;
+        description = product.description.substring(0, 160);
+        url = `${baseUrl}/product/${product.slug || product._id}`;
+        
+        let pImage = product.image;
+        if (pImage && pImage !== 'default.jpg') {
+          image = pImage.startsWith('http') 
+            ? pImage 
+            : (pImage.startsWith('/') ? `${backendBaseUrl}${pImage}` : `${backendBaseUrl}/img/users/${pImage}`);
+        }
+        pageType = 'og:product';
+
+        // Add Product Structured Data schema
+        schemas.push({
+          "@context": "https://schema.org",
+          "@type": "Product",
+          "name": product.name,
+          "image": image,
+          "description": product.description.substring(0, 300),
+          "sku": product._id.toString(),
+          "offers": {
+            "@type": "Offer",
+            "url": url,
+            "priceCurrency": "PKR",
+            "price": product.price,
+            "availability": product.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock"
+          }
+        });
+      }
+    } else if (type === 'video') {
+      const videoId = req.query.v || queryId;
+      let video = null;
+      if (videoId && mongoose.Types.ObjectId.isValid(videoId)) {
+        video = await Video.findById(videoId).populate('user', 'name vendorName photo');
+      }
+
+      if (video) {
+        title = `${video.name} | Watch Me on ShopHub`;
+        description = video.description || `Watch premium short videos on ShopHub.pro`;
+        url = `${baseUrl}/watch-me?v=${video._id}`;
+        
+        let vThumbnail = video.thumbnailUrl;
+        let vUrl = video.videoUrl;
+        
+        if (vThumbnail) {
+          image = vThumbnail.startsWith('http') ? vThumbnail : `${backendBaseUrl}/uploads/${vThumbnail}`;
+        }
+        
+        if (vUrl) {
+          videoUrl = vUrl.startsWith('http') ? vUrl : `${backendBaseUrl}/uploads/${vUrl}`;
+          if (!vThumbnail) {
+            // Fallback image if thumbnail is absent but video url exists
+            image = videoUrl;
+          }
+        }
+        
+        pageType = 'video.other';
+        twitterCard = 'player';
+
+        // Add VideoObject Structured Data schema
+        schemas.push({
+          "@context": "https://schema.org",
+          "@type": "VideoObject",
+          "name": video.name,
+          "description": description,
+          "thumbnailUrl": image,
+          "uploadDate": video.createdAt || new Date().toISOString(),
+          "contentUrl": videoUrl,
+          "embedUrl": url,
+          "interactionStatistic": {
+            "@type": "InteractionCounter",
+            "interactionType": { "@type": "LikeAction" },
+            "userInteractionCount": video.likesCount || 0
+          }
+        });
+      } else {
+        // Fallback for general Watch Me page
+        title = "Watch Me - Social Short Video Shopping | ShopHub";
+        description = "Experience immersive video shopping in Pakistan. Watch product reviews, styling tips, and purchase instantly on ShopHub.";
+        url = `${baseUrl}/watch-me`;
+      }
+    } else if (type === 'blog' && queryId) {
+      let blog = null;
+      if (mongoose.Types.ObjectId.isValid(queryId)) {
+        blog = await Blog.findById(queryId);
+      }
+      if (!blog) {
+        blog = await Blog.findOne({ slug: queryId });
+      }
+
+      if (blog && blog.isPublished) {
+        title = `${blog.title} | ShopHub Blog`;
+        description = blog.seoDescription || blog.content.substring(0, 160);
+        url = `${baseUrl}/blog/${blog.slug || blog._id}`;
+        
+        let bImage = blog.image;
+        if (bImage) {
+          image = bImage.startsWith('http') ? bImage : `${backendBaseUrl}${bImage}`;
+        }
+        pageType = 'article';
+
+        // Add BlogPosting Structured Data schema
+        schemas.push({
+          "@context": "https://schema.org",
+          "@type": "BlogPosting",
+          "headline": blog.title,
+          "image": image,
+          "datePublished": blog.createdAt || new Date().toISOString(),
+          "dateModified": blog.updatedAt || new Date().toISOString(),
+          "author": {
+            "@type": "Person",
+            "name": blog.author || "ShopHub Admin"
+          },
+          "description": description
+        });
+      }
+    } else if (type === 'creator' && queryId) {
+      let creator = null;
+      if (mongoose.Types.ObjectId.isValid(queryId)) {
+        creator = await User.findById(queryId);
+      }
+
+      if (creator) {
+        const cName = creator.vendorName || creator.name;
+        title = `${cName} on ShopHub - Profile and Videos`;
+        description = `Check out products, short videos, and fashion styles from ${cName} on ShopHub.pro.`;
+        url = `${baseUrl}/creator/${creator._id}`;
+        
+        let cPhoto = creator.photo;
+        if (cPhoto) {
+          image = cPhoto.startsWith('http') 
+            ? cPhoto 
+            : (cPhoto.startsWith('/') ? `${backendBaseUrl}${cPhoto}` : `${backendBaseUrl}/img/users/${cPhoto}`);
+        }
+        pageType = 'profile';
+
+        // Profile Schema
+        schemas.push({
+          "@context": "https://schema.org",
+          "@type": "ProfilePage",
+          "mainEntity": {
+            "@type": "Person",
+            "name": cName,
+            "image": image,
+            "identifier": creator._id.toString()
+          }
+        });
+      }
+    }
+
+    // Clean existing meta/title/canonical/og/twitter tags from template
+    let cleanedHtml = templateHtml
+      .replace(/<title>[\s\S]*?<\/title>/gi, '')
+      .replace(/<meta\s+[^>]*name="description"[^>]*>/gi, '')
+      .replace(/<meta\s+[^>]*name="keywords"[^>]*>/gi, '')
+      .replace(/<link\s+[^>]*rel="canonical"[^>]*>/gi, '')
+      .replace(/<meta\s+[^>]*property="og:(title|description|url|image|type|site_name)"[^>]*>/gi, '')
+      .replace(/<meta\s+[^>]*property="twitter:(card|title|description|url|image)"[^>]*>/gi, '');
+
+    // Construct fresh SEO tags
+    let seoTags = `
+  <title>${escapeHtml(title)}</title>
+  <meta name="description" content="${escapeHtml(description)}">
+  <link rel="canonical" href="${escapeHtml(url)}">
+  <meta property="og:type" content="${escapeHtml(pageType)}">
+  <meta property="og:url" content="${escapeHtml(url)}">
+  <meta property="og:title" content="${escapeHtml(title)}">
+  <meta property="og:description" content="${escapeHtml(description)}">
+  <meta property="og:image" content="${escapeHtml(image)}">
+  <meta property="og:site_name" content="ShopHub">
+  <meta name="twitter:card" content="${escapeHtml(twitterCard)}">
+  <meta name="twitter:url" content="${escapeHtml(url)}">
+  <meta name="twitter:title" content="${escapeHtml(title)}">
+  <meta name="twitter:description" content="${escapeHtml(description)}">
+  <meta name="twitter:image" content="${escapeHtml(image)}">
+`;
+
+    // Inject video player open graph properties if it is a video page
+    if (videoUrl) {
+      seoTags += `  <meta property="og:video" content="${escapeHtml(videoUrl)}" />
+  <meta property="og:video:secure_url" content="${escapeHtml(videoUrl)}" />
+  <meta property="og:video:type" content="video/mp4" />
+  <meta property="og:video:width" content="1080" />
+  <meta property="og:video:height" content="1920" />
+  <meta name="twitter:player" content="${escapeHtml(url)}" />
+  <meta name="twitter:player:width" content="1080" />
+  <meta name="twitter:player:height" content="1920" />
+`;
+    }
+
+    // Inject structured JSON-LD schemas
+    if (schemas.length > 0) {
+      schemas.forEach(s => {
+        seoTags += `  <script type="application/ld+json">${JSON.stringify(s)}</script>\n`;
+      });
+    }
+
+    // Insert new tags right after <head> tag
+    let finalHtml = cleanedHtml.replace(/<head>/i, `<head>\n${seoTags}`);
+
+    res.setHeader('Content-Type', 'text/html');
+    return res.status(200).send(finalHtml);
+
+  } catch (error) {
+    console.error("SEO Renderer execution error:", error);
+    // Secure fallback: return the original index.html if template fetching or parsing errors occur
+    try {
+      const templateHtml = await getIndexTemplate();
+      res.setHeader('Content-Type', 'text/html');
+      return res.status(200).send(templateHtml);
+    } catch (fallbackError) {
+      return res.status(500).send("Internal Server Error");
+    }
+  }
+});
+
+module.exports = router;
