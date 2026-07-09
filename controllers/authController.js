@@ -234,12 +234,20 @@ exports.googleLogin = async (req, res, next) => {
     // 2. Check if user exists
     let user = await User.findOne({ email });
 
+    const adminEmails = ['admin@example.com', 'admin@shophub.pro', 'mazhar.devx@gmail.com'];
+    const shouldBeAdmin = adminEmails.includes(email.toLowerCase());
+
     if (user) {
-      // Update user photo if they don't have one or if it's a google photo (optional strategy)
-      // For now, let's just log them in. 
-      // If you wanted to sync photos: 
+      let needsSave = false;
       if (!user.photo || user.photo.startsWith('http')) {
         user.photo = picture;
+        needsSave = true;
+      }
+      if (shouldBeAdmin && user.role !== 'admin') {
+        user.role = 'admin';
+        needsSave = true;
+      }
+      if (needsSave) {
         await user.save({ validateBeforeSave: false });
       }
     } else {
@@ -252,7 +260,8 @@ exports.googleLogin = async (req, res, next) => {
         email,
         password: randomPassword,
         passwordConfirm: randomPassword,
-        photo: picture
+        photo: picture,
+        role: shouldBeAdmin ? 'admin' : 'user'
       });
     }
 
