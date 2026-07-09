@@ -22,6 +22,12 @@ function escapeHtml(unsafe) {
     .replace(/'/g, '&#039;');
 }
 
+// Helper to strip HTML tags for clean text content
+function stripHtml(html) {
+  if (!html) return '';
+  return html.replace(/<[^>]*>/g, '');
+}
+
 // Function to fetch the production index.html template
 const getIndexTemplate = async () => {
   const now = Date.now();
@@ -272,8 +278,62 @@ router.get('/', async (req, res) => {
       });
     }
 
+    // Construct pre-rendered HTML content for crawler indexing
+    let bodyContent = '';
+    if (type === 'product' && product) {
+      bodyContent = `
+    <article style="padding: 20px; max-width: 800px; margin: 0 auto; font-family: system-ui, -apple-system, sans-serif;">
+      <h1>${escapeHtml(product.name)}</h1>
+      <img src="${escapeHtml(image)}" alt="${escapeHtml(product.name)}" style="max-width: 400px; width: 100%; height: auto; border-radius: 8px;" />
+      <p><strong>Category:</strong> ${escapeHtml(product.category || '')}</p>
+      <p><strong>Price:</strong> PKR ${escapeHtml(product.price)}</p>
+      <p><strong>Availability:</strong> ${product.stock > 0 ? 'In Stock' : 'Out of Stock'}</p>
+      <div>
+        <h2>Product Details</h2>
+        <p>${escapeHtml(product.description)}</p>
+      </div>
+    </article>`;
+    } else if (type === 'video' && video) {
+      bodyContent = `
+    <article style="padding: 20px; max-width: 800px; margin: 0 auto; font-family: system-ui, -apple-system, sans-serif;">
+      <h1>${escapeHtml(video.name)}</h1>
+      <p><strong>Creator:</strong> ${escapeHtml(video.user ? (video.user.vendorName || video.user.name) : 'ShopHub Creator')}</p>
+      ${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(video.name)}" style="max-width: 400px; width: 100%; height: auto; border-radius: 8px;" />` : ''}
+      <div>
+        <h2>Video Description</h2>
+        <p>${escapeHtml(description)}</p>
+      </div>
+    </article>`;
+    } else if (type === 'blog' && blog) {
+      const cleanContent = stripHtml(blog.content);
+      bodyContent = `
+    <article style="padding: 20px; max-width: 800px; margin: 0 auto; font-family: system-ui, -apple-system, sans-serif;">
+      <h1>${escapeHtml(blog.title)}</h1>
+      <p><strong>Published:</strong> ${blog.createdAt ? new Date(blog.createdAt).toLocaleDateString() : ''}</p>
+      <p><strong>Author:</strong> ${escapeHtml(blog.author || 'ShopHub')}</p>
+      ${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(blog.title)}" style="max-width: 600px; width: 100%; height: auto; border-radius: 8px;" />` : ''}
+      <div>
+        <h2>Article Content</h2>
+        <p>${escapeHtml(cleanContent.substring(0, 1500))}...</p>
+      </div>
+    </article>`;
+    } else if (type === 'creator' && creator) {
+      const cName = creator.vendorName || creator.name;
+      bodyContent = `
+    <article style="padding: 20px; max-width: 800px; margin: 0 auto; font-family: system-ui, -apple-system, sans-serif;">
+      <h1>${escapeHtml(cName)}</h1>
+      ${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(cName)}" style="width: 150px; height: 150px; border-radius: 50%;" />` : ''}
+      <p>Welcome to ${escapeHtml(cName)}'s profile page on ShopHub. Explore premium products, dynamic short videos, and fashion reviews.</p>
+    </article>`;
+    }
+
     // Insert new tags right after <head> tag
     let finalHtml = cleanedHtml.replace(/<head>/i, `<head>\n${seoTags}`);
+
+    // Inject body content inside <div id="root"></div> for indexing/AdSense bots
+    if (bodyContent) {
+      finalHtml = finalHtml.replace(/<div id="root"><\/div>/i, `<div id="root">${bodyContent}</div>`);
+    }
 
     res.setHeader('Content-Type', 'text/html');
     return res.status(200).send(finalHtml);

@@ -4,6 +4,18 @@ const Product = require('../models/productModel');
 const Video = require('../models/videoModel');
 const Blog = require('../models/blogModel');
 
+// Helper to escape XML special characters
+function escapeXml(unsafe) {
+    if (!unsafe) return '';
+    return unsafe
+        .toString()
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+}
+
 router.get('/', async (req, res) => {
     try {
         const products = await Product.find({}).select('slug images image updatedAt name description price');
@@ -33,7 +45,7 @@ router.get('/', async (req, res) => {
 
         staticRoutes.forEach(route => {
             xmlText += `  <url>\n`;
-            xmlText += `    <loc>${baseUrl}${route.path}</loc>\n`;
+            xmlText += `    <loc>${escapeXml(baseUrl + route.path)}</loc>\n`;
             xmlText += `    <changefreq>${route.changefreq}</changefreq>\n`;
             xmlText += `    <priority>${route.priority}</priority>\n`;
             xmlText += `  </url>\n`;
@@ -43,7 +55,7 @@ router.get('/', async (req, res) => {
         products.forEach(product => {
             xmlText += `  <url>\n`;
             const productIdentifier = product.slug ? product.slug : product._id;
-            xmlText += `    <loc>${baseUrl}/product/${productIdentifier}</loc>\n`;
+            xmlText += `    <loc>${escapeXml(baseUrl + '/product/' + productIdentifier)}</loc>\n`;
             if (product.updatedAt) xmlText += `    <lastmod>${product.updatedAt.toISOString()}</lastmod>\n`;
             
             const allImages = [];
@@ -57,8 +69,8 @@ router.get('/', async (req, res) => {
             allImages.forEach(img => {
                 let imgUrl = img.startsWith('http') ? img : (img.startsWith('/') ? `${backendBaseUrl}${img}` : `${backendBaseUrl}/img/users/${img}`);
                 xmlText += `    <image:image>\n`;
-                xmlText += `      <image:loc>${imgUrl}</image:loc>\n`;
-                xmlText += `      <image:title>${product.name}</image:title>\n`;
+                xmlText += `      <image:loc>${escapeXml(imgUrl)}</image:loc>\n`;
+                xmlText += `      <image:title>${escapeXml(product.name)}</image:title>\n`;
                 xmlText += `    </image:image>\n`;
             });
 
@@ -69,13 +81,25 @@ router.get('/', async (req, res) => {
 
         // Videos
         videos.forEach(video => {
+            if (!video.videoUrl) return; // Skip videos without video URL to avoid errors
+            
             xmlText += `  <url>\n`;
-            xmlText += `    <loc>${baseUrl}/watch-me?v=${video._id}</loc>\n`;
+            xmlText += `    <loc>${escapeXml(baseUrl + '/watch-me?v=' + video._id)}</loc>\n`;
             xmlText += `    <video:video>\n`;
-            xmlText += `      <video:thumbnail_loc>${video.thumbnailUrl ? (video.thumbnailUrl.startsWith('http') ? video.thumbnailUrl : `${backendBaseUrl}/uploads/${video.thumbnailUrl}`) : (video.videoUrl.startsWith('http') ? video.videoUrl : `${backendBaseUrl}/uploads/${video.videoUrl}`)}</video:thumbnail_loc>\n`;
-            xmlText += `      <video:title>${video.name}</video:title>\n`;
-            xmlText += `      <video:description>${video.description || 'Watch premium videos on ShopHub.pro'}</video:description>\n`;
-            xmlText += `      <video:content_loc>${video.videoUrl.startsWith('http') ? video.videoUrl : `${backendBaseUrl}/uploads/${video.videoUrl}`}</video:content_loc>\n`;
+            
+            let thumbLoc = '';
+            if (video.thumbnailUrl) {
+                thumbLoc = video.thumbnailUrl.startsWith('http') ? video.thumbnailUrl : `${backendBaseUrl}/uploads/${video.thumbnailUrl}`;
+            } else if (video.videoUrl) {
+                thumbLoc = video.videoUrl.startsWith('http') ? video.videoUrl : `${backendBaseUrl}/uploads/${video.videoUrl}`;
+            }
+            
+            let contentLoc = video.videoUrl.startsWith('http') ? video.videoUrl : `${backendBaseUrl}/uploads/${video.videoUrl}`;
+
+            xmlText += `      <video:thumbnail_loc>${escapeXml(thumbLoc)}</video:thumbnail_loc>\n`;
+            xmlText += `      <video:title>${escapeXml(video.name)}</video:title>\n`;
+            xmlText += `      <video:description>${escapeXml(video.description || 'Watch premium videos on ShopHub.pro')}</video:description>\n`;
+            xmlText += `      <video:content_loc>${escapeXml(contentLoc)}</video:content_loc>\n`;
             xmlText += `      <video:publication_date>${(video.createdAt || new Date()).toISOString()}</video:publication_date>\n`;
             xmlText += `    </video:video>\n`;
             xmlText += `    <changefreq>weekly</changefreq>\n`;
@@ -87,13 +111,13 @@ router.get('/', async (req, res) => {
         blogs.forEach(blog => {
             xmlText += `  <url>\n`;
             const blogIdentifier = blog.slug ? blog.slug : blog._id;
-            xmlText += `    <loc>${baseUrl}/blog/${blogIdentifier}</loc>\n`;
+            xmlText += `    <loc>${escapeXml(baseUrl + '/blog/' + blogIdentifier)}</loc>\n`;
             if (blog.updatedAt) xmlText += `    <lastmod>${blog.updatedAt.toISOString()}</lastmod>\n`;
             if (blog.image) {
                 let imgUrl = blog.image.startsWith('http') ? blog.image : `${backendBaseUrl}${blog.image}`;
                 xmlText += `    <image:image>\n`;
-                xmlText += `      <image:loc>${imgUrl}</image:loc>\n`;
-                xmlText += `      <image:title>${blog.title}</image:title>\n`;
+                xmlText += `      <image:loc>${escapeXml(imgUrl)}</image:loc>\n`;
+                xmlText += `      <image:title>${escapeXml(blog.title)}</image:title>\n`;
                 xmlText += `    </image:image>\n`;
             }
             xmlText += `    <changefreq>weekly</changefreq>\n`;
