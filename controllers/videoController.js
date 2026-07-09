@@ -100,47 +100,54 @@ exports.getAllVideos = catchAsync(async (req, res, next) => {
     // 3. Sort by recommendation score
     videos.sort((a, b) => b.recScore - a.recScore);
 
+    // Parse watched video IDs from client query (comma-separated)
+    const watchedIds = req.query.watched ? req.query.watched.split(',').filter(id => id.trim() !== '') : [];
+
+    let preferredTags = [];
     if (req.query.userId) {
       try {
-        // 1. Find videos this user liked
         const likedVideos = await Video.find({ likes: req.query.userId }).select('tags');
         if (likedVideos.length > 0) {
-          // 2. Extract and count tags
           const tagCounts = {};
           likedVideos.forEach(v => {
             v.tags.forEach(tag => {
               tagCounts[tag] = (tagCounts[tag] || 0) + 1;
             });
           });
-          
-          // 3. Get top 5 preferred tags
-          const preferredTags = Object.keys(tagCounts).sort((a, b) => tagCounts[b] - tagCounts[a]).slice(0, 5);
-          
-          if (preferredTags.length > 0) {
-            // 4. Sort fetched videos based on whether they contain preferred tags and if they've been liked
-            videos.sort((a, b) => {
-              // We want to prioritize videos the user HAS NOT liked yet
-              const aLiked = a.likes.some(id => id.toString() === req.query.userId);
-              const bLiked = b.likes.some(id => id.toString() === req.query.userId);
-
-              // Push already liked videos lower to avoid repeating what they already liked
-              if (!aLiked && bLiked) return -1;
-              if (aLiked && !bLiked) return 1;
-
-              const aHasPref = a.tags.some(t => preferredTags.includes(t));
-              const bHasPref = b.tags.some(t => preferredTags.includes(t));
-              
-              if (aHasPref && !bHasPref) return -1;
-              if (!aHasPref && bHasPref) return 1;
-              
-              return b.recScore - a.recScore; // maintain randomized order if both or neither have preferred tags
-            });
-          }
+          preferredTags = Object.keys(tagCounts).sort((a, b) => tagCounts[b] - tagCounts[a]).slice(0, 5);
         }
       } catch (err) {
         console.log('Recommendation error:', err);
       }
     }
+
+    // Sort using watched history, likes status, and preferred tags
+    videos.sort((a, b) => {
+      const aLiked = req.query.userId ? a.likes.some(id => id.toString() === req.query.userId) : false;
+      const bLiked = req.query.userId ? b.likes.some(id => id.toString() === req.query.userId) : false;
+      
+      const aWatched = watchedIds.includes(a._id.toString());
+      const bWatched = watchedIds.includes(b._id.toString());
+
+      // Assign status score: Watched + Liked (both watched and liked is 3, watched only is 2, liked only is 1, none is 0)
+      const aStatusScore = (aWatched ? 2 : 0) + (aLiked ? 1 : 0);
+      const bStatusScore = (bWatched ? 2 : 0) + (bLiked ? 1 : 0);
+
+      // PUSH LIKED/WATCHED VIDEOS TO THE BOTTOM
+      // Lower status score means not liked/not watched. We show them first!
+      if (aStatusScore !== bStatusScore) {
+        return aStatusScore - bStatusScore; 
+      }
+
+      // If both have same status (e.g. both unwatched/unliked, or both watched), prioritize preferred tags (similar to user liked tags)
+      const aHasPref = preferredTags.length > 0 && a.tags.some(t => preferredTags.includes(t));
+      const bHasPref = preferredTags.length > 0 && b.tags.some(t => preferredTags.includes(t));
+
+      if (aHasPref && !bHasPref) return -1;
+      if (!aHasPref && bHasPref) return 1;
+
+      return b.recScore - a.recScore; // fallback to recommendation score
+    });
   }
 
   res.status(200).json({
@@ -578,5 +585,87 @@ exports.deleteReply = catchAsync(async (req, res, next) => {
   res.status(204).json({
     status: 'success',
     data: null
+  });
+});
+
+exports.syncProductVideos = catchAsync(async (req, res, next) => {
+  const Product = require('../models/productModel');
+  
+  // Find all products that have a video
+  const products = await Product.find({
+    video: { $exists: true, $ne: '' }
+  });
+
+  let syncedCount = 0;
+  let skippedCount = 0;
+
+  for (const product of products) {
+    // Check if the product has images
+    const hasImages = (product.images && product.images.length > 0 && product.images[0] !== 'default.jpg') || (product.image && product.image !== 'default.jpg');
+    if (!hasImages) {
+      skippedCount++;
+      continue;
+    }
+
+    const pLink = product.slug || product._id.toString();
+    const pVideo = product.video;
+
+    // Check if a video with the same productLink or videoUrl already exists
+    const existingVideo = await Video.findOne({
+      $or: [
+        { productLink: pLink },
+        { videoUrl: pVideo }
+      ]
+    });
+
+    if (existingVideo) {
+      skippedCount++;
+      continue;
+    }
+
+    // Construct thumbnail URL
+    const pImage = (product.images && product.images.length > 0 && product.images[0] !== 'default.jpg')
+      ? product.images[0]
+      : product.image;
+
+    // Generate exactly 10 tags
+    const baseTags = [
+      product.category,
+      product.brand,
+      ...(product.tags || [])
+    ].filter(t => t && t.trim() !== '');
+
+    const defaultTags = ['trending', 'shopping', 'foryou', 'fashion', 'luxury', 'shop', 'deals', 'popular', 'best', 'viral'];
+    const uniqueTagsSet = new Set(baseTags);
+    
+    // Add default tags until we have exactly 10 tags
+    for (const tag of defaultTags) {
+      if (uniqueTagsSet.size >= 10) break;
+      uniqueTagsSet.add(tag);
+    }
+    
+    const finalTags = Array.from(uniqueTagsSet).slice(0, 10);
+
+    // Create new Video (defaulting to current admin user)
+    await Video.create({
+      user: req.user._id,
+      videoUrl: pVideo,
+      thumbnailUrl: pImage,
+      name: product.name,
+      description: product.description ? product.description.substring(0, 480) : `Check out ${product.name}!`,
+      tags: finalTags,
+      productLink: pLink
+    });
+
+    syncedCount++;
+  }
+
+  res.status(200).json({
+    status: 'success',
+    message: `Synchronized successfully! ${syncedCount} videos added, ${skippedCount} products skipped (either no images/video or already synced).`,
+    data: {
+      syncedCount,
+      skippedCount
+    }
   });
 });

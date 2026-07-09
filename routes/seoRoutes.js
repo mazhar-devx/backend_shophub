@@ -145,8 +145,8 @@ router.get('/', async (req, res) => {
       }
 
       if (video) {
-        title = `${video.name} | Watch Me on ShopHub`;
-        description = video.description || `Watch premium short videos on ShopHub.pro`;
+        title = `Watch ${video.name} - Dynamic Video Shopping & Reviews | ShopHub`;
+        description = `Watch real-time short videos, unboxing clips, and expert reviews for ${video.name} on ShopHub.pro. Created by ${video.user ? (video.user.vendorName || video.user.name) : 'ShopHub'}. Watch now & purchase instantly!`;
         url = `${baseUrl}/watch-me?v=${video._id}`;
         
         let vThumbnail = video.thumbnailUrl;

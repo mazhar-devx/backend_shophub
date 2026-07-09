@@ -12,6 +12,8 @@ router.get('/user/:userId', videoController.getUserVideos);
 // Protected routes
 router.use(authController.protect);
 
+router.post('/sync-products', authController.restrictTo('admin'), videoController.syncProductVideos);
+
 router.post(
   '/', 
   upload.fields([
