@@ -81,8 +81,15 @@ router.get('/', async (req, res) => {
       }
 
       if (product) {
-        title = `${product.name} | ShopHub`;
-        description = product.description.substring(0, 160);
+        // Amazon-style keyword-focused Title
+        title = `Buy ${product.name} Online at Best Price in Pakistan | ShopHub`;
+        
+        // Amazon-style high-CTR Meta Description
+        const finalPrice = product.discountPercentage > 0 
+          ? product.price * (1 - product.discountPercentage / 100) 
+          : product.price;
+        description = `Shop online for ${product.name} in Pakistan. Brand: ${product.brand || 'ShopHub'}. Category: ${product.category}. Price: PKR ${finalPrice}. ${product.description.substring(0, 120)}... Enjoy 24h delivery, premium quality, and secure checkout.`;
+        
         url = `${baseUrl}/product/${product.slug || product._id}`;
         
         let pImage = product.image;
@@ -93,22 +100,42 @@ router.get('/', async (req, res) => {
         }
         pageType = 'og:product';
 
-        // Add Product Structured Data schema
-        schemas.push({
+        // Add ultra-rich Amazon-level Product Schema
+        const productSchemaJson = {
           "@context": "https://schema.org",
           "@type": "Product",
           "name": product.name,
-          "image": image,
+          "image": [image],
           "description": product.description.substring(0, 300),
           "sku": product._id.toString(),
+          "mpn": product._id.toString(),
+          "brand": {
+            "@type": "Brand",
+            "name": product.brand || "ShopHub"
+          },
+          "category": product.category,
           "offers": {
             "@type": "Offer",
             "url": url,
-            "priceCurrency": "PKR",
-            "price": product.price,
-            "availability": product.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock"
+            "priceCurrency": product.currency || "PKR",
+            "price": finalPrice,
+            "priceValidUntil": new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            "availability": product.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+            "itemCondition": "https://schema.org/NewCondition"
           }
-        });
+        };
+
+        if (product.ratingsQuantity > 0) {
+          productSchemaJson.aggregateRating = {
+            "@type": "AggregateRating",
+            "ratingValue": product.ratingsAverage,
+            "reviewCount": product.ratingsQuantity,
+            "bestRating": 5,
+            "worstRating": 1
+          };
+        }
+
+        schemas.push(productSchemaJson);
       }
     } else if (type === 'video') {
       const videoId = req.query.v || queryId;
