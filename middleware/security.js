@@ -37,12 +37,14 @@ exports.setSecurityHeaders = helmet({
         "https://pagead2.googlesyndication.com",
         "https://adservice.google.com",
         "https://cdn.ampproject.org",
+        "https://*.ampproject.org",
         "https://translate.google.com",
         "https://translate.googleapis.com",
+        "https://*.googleapis.com",
         "https://accounts.google.com",
-        "https://*.googlesyndication.com",
         "https://*.google.com",
-        "https://*.doubleclick.net"
+        "https://*.doubleclick.net",
+        "https://*.gstatic.com"
       ],
       scriptSrcAttr: ["'unsafe-inline'"],
       connectSrc: [
@@ -57,6 +59,12 @@ exports.setSecurityHeaders = helmet({
         "https://*.analytics.google.com",
         "https://*.googlesyndication.com",
         "https://*.googleads.g.doubleclick.net",
+        "https://*.ampproject.org",
+        "https://accounts.google.com",
+        "https://*.adtrafficquality.google",
+        "https://*.googleapis.com",
+        "https://*.google.com",
+        "https://*.gstatic.com",
         "http://localhost:5000",
         "http://127.0.0.1:5000",
         "http://localhost:5173",
@@ -72,6 +80,9 @@ exports.setSecurityHeaders = helmet({
         "https://*.shophub.pro",
         "https://shophub.pro",
         "https://images.unsplash.com",
+        "https://*.unsplash.com",
+        "https://res.cloudinary.com",
+        "https://*.cloudinary.com",
         "https://ui-avatars.com",
         "https://i.imgur.com",
         "https://translate.google.com",
@@ -85,7 +96,10 @@ exports.setSecurityHeaders = helmet({
         "'self'",
         "'unsafe-inline'",
         "https://fonts.googleapis.com",
-        "https://translate.googleapis.com"
+        "https://translate.googleapis.com",
+        "https://accounts.google.com",
+        "https://www.gstatic.com",
+        "https://*.gstatic.com"
       ],
       fontSrc: [
         "'self'",
@@ -104,6 +118,9 @@ exports.setSecurityHeaders = helmet({
         "data:",
         "blob:",
         "https://www.soundhelix.com",
+        "https://assets.mixkit.co",
+        "https://res.cloudinary.com",
+        "https://*.cloudinary.com",
         "https://backend-shophub.vercel.app",
         "https://*.shophub.pro",
         "https://shophub.pro"

@@ -24,9 +24,10 @@ mongoose
         let admin = await User.findOne({ email: adminEmail });
 
         if (admin) {
-            console.log('Admin user already exists. Updating role...');
+            console.log('Admin user already exists. Updating role and vendor name...');
             admin.role = 'admin';
             admin.isVerified = true;
+            admin.vendorName = 'mazhar.devx';
             admin.password = adminPass;
             admin.passwordConfirm = adminPass;
             await admin.save();
@@ -38,6 +39,7 @@ mongoose
                 password: adminPass,
                 passwordConfirm: adminPass,
                 role: 'admin',
+                vendorName: 'mazhar.devx',
                 isVerified: true
             });
             console.log('Admin user created successfully.');
