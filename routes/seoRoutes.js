@@ -10,7 +10,7 @@ const User = require('../models/userModel');
 let cachedHtml = null;
 let cacheTime = 0;
 
-// Helper to escape HTML characters
+// Helper to escape HTML text content (NOT for URLs in attributes)
 function escapeHtml(unsafe) {
   if (!unsafe) return '';
   return unsafe
@@ -22,40 +22,67 @@ function escapeHtml(unsafe) {
     .replace(/'/g, '&#039;');
 }
 
+// Safe escape for URLs used inside HTML attributes — only escapes < > " (NOT &)
+function escapeUrl(url) {
+  if (!url) return '';
+  return url.toString()
+    .replace(/</g, '%3C')
+    .replace(/>/g, '%3E')
+    .replace(/"/g, '%22');
+}
+
 // Helper to strip HTML tags for clean text content
 function stripHtml(html) {
   if (!html) return '';
   return html.replace(/<[^>]*>/g, '');
 }
 
-// Function to fetch the production index.html template
+// Helper to resolve product, video, or user media URLs dynamically
+function getProductImageUrl(path, backendBaseUrl) {
+  if (!path) return '';
+  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) return path;
+  if (path === 'default.jpg') return 'https://www.shophub.pro/default-avatar.png';
+  const base = backendBaseUrl.replace(/\/$/, '');
+  return path.startsWith('/') ? `${base}${path}` : `${base}/${path}`;
+}
+
+// ALWAYS fetch the frontend index.html from the production Vercel frontend domain.
+// This is CRITICAL — if we use the request host (backend domain), the served HTML will
+// reference /assets/... JS bundles that don't exist on the backend, causing white screens on refresh.
+const FRONTEND_URL = 'https://www.shophub.pro';
+
 const getIndexTemplate = async () => {
   const now = Date.now();
-  // Cache the template for 10 minutes to minimize network requests
-  if (cachedHtml && (now - cacheTime < 10 * 60 * 1000)) {
+  // Cache the template for 30 minutes (it only changes on new Vercel deploys)
+  if (cachedHtml && (now - cacheTime < 30 * 60 * 1000)) {
     return cachedHtml;
   }
   
   try {
-    const response = await fetch('https://www.shophub.pro/index.html');
+    const response = await fetch(`${FRONTEND_URL}/index.html`, {
+      headers: { 'Accept': 'text/html', 'User-Agent': 'ShopHub-SEO-Bot/1.0' }
+    });
     if (!response.ok) {
-      throw new Error(`Failed to fetch index.html: ${response.statusText}`);
+      throw new Error(`Failed to fetch index.html: ${response.status} ${response.statusText}`);
     }
     cachedHtml = await response.text();
     cacheTime = now;
     return cachedHtml;
   } catch (error) {
-    console.error("Error fetching index.html template:", error);
-    if (cachedHtml) return cachedHtml; // Fallback to expired cache if fetch fails
-    // Ultimate fallback if no template has ever been cached
-    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>ShopHub</title></head><body><div id="root"></div></body></html>`;
+    console.error('[SEO] Error fetching index.html template:', error.message);
+    if (cachedHtml) return cachedHtml; // Use expired cache before giving up
+    // Hard fallback — serves a minimal shell that React can hydrate into
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>ShopHub</title></head><body><div id="root"></div></body></html>`;
   }
 };
 
 router.get('/', async (req, res) => {
   const { type, id, slug } = req.query;
-  const baseUrl = 'https://www.shophub.pro';
-  const backendBaseUrl = 'https://backend-shophub.vercel.app';
+
+  // Always use the canonical frontend domain for page URLs and image references.
+  // The backend is a separate Vercel deployment — page URLs must reference shophub.pro
+  const baseUrl = FRONTEND_URL;
+  const backendBaseUrl = process.env.BACKEND_URL || 'https://backend-shophub.vercel.app';
 
   // Default SEO Values
   let title = "ShopHub - Pakistan's #1 Luxury Shopping & Social Marketplace";
@@ -65,14 +92,30 @@ router.get('/', async (req, res) => {
   let pageType = 'website';
   let twitterCard = 'summary_large_image';
   let videoUrl = null;
+  let keywords = 'shophub, online shopping pakistan, luxury shopping, buy online pakistan, ecommerce pakistan';
   const schemas = [];
+
+  // Default BreadcrumbList (always present)
+  schemas.push({
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [{
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": baseUrl
+    }]
+  });
 
   try {
     const templateHtml = await getIndexTemplate();
     let queryId = id || slug;
+    let product = null;
+    let video = null;
+    let blog = null;
+    let creator = null;
 
     if (type === 'product' && queryId) {
-      let product = null;
       if (mongoose.Types.ObjectId.isValid(queryId)) {
         product = await Product.findById(queryId);
       }
@@ -92,20 +135,28 @@ router.get('/', async (req, res) => {
         
         url = `${baseUrl}/product/${product.slug || product._id}`;
         
-        let pImage = product.image;
-        if (pImage && pImage !== 'default.jpg') {
-          image = pImage.startsWith('http') 
-            ? pImage 
-            : (pImage.startsWith('/') ? `${backendBaseUrl}${pImage}` : `${backendBaseUrl}/img/users/${pImage}`);
-        }
+        image = getProductImageUrl(product.images?.[0] || product.image, backendBaseUrl);
         pageType = 'og:product';
+
+        // Product-specific keywords from AI-generated tags
+        if (product.tags && product.tags.length > 0) {
+          keywords = [...product.tags, product.brand || 'ShopHub', product.category, 'buy online pakistan', 'shophub'].join(', ');
+        } else {
+          keywords = `${product.name}, ${product.brand || 'ShopHub'}, ${product.category}, buy ${product.category} online pakistan, shophub`;
+        }
+
+        // Product breadcrumb schema
+        schemas[0].itemListElement.push(
+          { "@type": "ListItem", "position": 2, "name": escapeHtml(product.category), "item": `${baseUrl}/products?category=${product.category}` },
+          { "@type": "ListItem", "position": 3, "name": escapeHtml(product.name), "item": url }
+        );
 
         // Add ultra-rich Amazon-level Product Schema
         const productSchemaJson = {
           "@context": "https://schema.org",
           "@type": "Product",
           "name": product.name,
-          "image": [image],
+          "image": (product.images?.length ? product.images : [product.image]).filter(Boolean).map(img => getProductImageUrl(img, backendBaseUrl)),
           "description": product.description.substring(0, 300),
           "sku": product._id.toString(),
           "mpn": product._id.toString(),
@@ -139,7 +190,6 @@ router.get('/', async (req, res) => {
       }
     } else if (type === 'video') {
       const videoId = req.query.v || queryId;
-      let video = null;
       if (videoId && mongoose.Types.ObjectId.isValid(videoId)) {
         video = await Video.findById(videoId).populate('user', 'name vendorName photo');
       }
@@ -152,16 +202,10 @@ router.get('/', async (req, res) => {
         let vThumbnail = video.thumbnailUrl;
         let vUrl = video.videoUrl;
         
-        if (vThumbnail) {
-          image = vThumbnail.startsWith('http') ? vThumbnail : `${backendBaseUrl}/uploads/${vThumbnail}`;
-        }
+        image = getProductImageUrl(vThumbnail || vUrl, backendBaseUrl);
         
         if (vUrl) {
-          videoUrl = vUrl.startsWith('http') ? vUrl : `${backendBaseUrl}/uploads/${vUrl}`;
-          if (!vThumbnail) {
-            // Fallback image if thumbnail is absent but video url exists
-            image = videoUrl;
-          }
+          videoUrl = getProductImageUrl(vUrl, backendBaseUrl);
         }
         
         pageType = 'video.other';
@@ -190,7 +234,6 @@ router.get('/', async (req, res) => {
         url = `${baseUrl}/watch-me`;
       }
     } else if (type === 'blog' && queryId) {
-      let blog = null;
       if (mongoose.Types.ObjectId.isValid(queryId)) {
         blog = await Blog.findById(queryId);
       }
@@ -203,10 +246,7 @@ router.get('/', async (req, res) => {
         description = blog.seoDescription || blog.content.substring(0, 160);
         url = `${baseUrl}/blog/${blog.slug || blog._id}`;
         
-        let bImage = blog.image;
-        if (bImage) {
-          image = bImage.startsWith('http') ? bImage : `${backendBaseUrl}${bImage}`;
-        }
+        image = getProductImageUrl(blog.image, backendBaseUrl);
         pageType = 'article';
 
         // Add BlogPosting Structured Data schema
@@ -225,7 +265,6 @@ router.get('/', async (req, res) => {
         });
       }
     } else if (type === 'creator' && queryId) {
-      let creator = null;
       if (mongoose.Types.ObjectId.isValid(queryId)) {
         creator = await User.findById(queryId);
       }
@@ -236,12 +275,7 @@ router.get('/', async (req, res) => {
         description = `Check out products, short videos, and fashion styles from ${cName} on ShopHub.pro.`;
         url = `${baseUrl}/creator/${creator._id}`;
         
-        let cPhoto = creator.photo;
-        if (cPhoto) {
-          image = cPhoto.startsWith('http') 
-            ? cPhoto 
-            : (cPhoto.startsWith('/') ? `${backendBaseUrl}${cPhoto}` : `${backendBaseUrl}/img/users/${cPhoto}`);
-        }
+        image = getProductImageUrl(creator.photo || 'default.jpg', backendBaseUrl);
         pageType = 'profile';
 
         // Profile Schema
@@ -267,32 +301,38 @@ router.get('/', async (req, res) => {
       .replace(/<meta\s+[^>]*property="og:(title|description|url|image|type|site_name)"[^>]*>/gi, '')
       .replace(/<meta\s+[^>]*property="twitter:(card|title|description|url|image)"[^>]*>/gi, '');
 
-    // Construct fresh SEO tags
+    // Construct fresh SEO tags — use escapeUrl for URLs, escapeHtml for text content
     let seoTags = `
   <title>${escapeHtml(title)}</title>
   <meta name="description" content="${escapeHtml(description)}">
-  <link rel="canonical" href="${escapeHtml(url)}">
+  <meta name="keywords" content="${escapeHtml(keywords)}">
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+  <link rel="canonical" href="${escapeUrl(url)}">
   <meta property="og:type" content="${escapeHtml(pageType)}">
-  <meta property="og:url" content="${escapeHtml(url)}">
+  <meta property="og:url" content="${escapeUrl(url)}">
   <meta property="og:title" content="${escapeHtml(title)}">
   <meta property="og:description" content="${escapeHtml(description)}">
-  <meta property="og:image" content="${escapeHtml(image)}">
+  <meta property="og:image" content="${escapeUrl(image)}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
   <meta property="og:site_name" content="ShopHub">
+  <meta property="og:locale" content="en_US">
   <meta name="twitter:card" content="${escapeHtml(twitterCard)}">
-  <meta name="twitter:url" content="${escapeHtml(url)}">
+  <meta name="twitter:site" content="@shophub_pro">
+  <meta name="twitter:url" content="${escapeUrl(url)}">
   <meta name="twitter:title" content="${escapeHtml(title)}">
   <meta name="twitter:description" content="${escapeHtml(description)}">
-  <meta name="twitter:image" content="${escapeHtml(image)}">
+  <meta name="twitter:image" content="${escapeUrl(image)}">
 `;
 
     // Inject video player open graph properties if it is a video page
     if (videoUrl) {
-      seoTags += `  <meta property="og:video" content="${escapeHtml(videoUrl)}" />
-  <meta property="og:video:secure_url" content="${escapeHtml(videoUrl)}" />
+      seoTags += `  <meta property="og:video" content="${escapeUrl(videoUrl)}" />
+  <meta property="og:video:secure_url" content="${escapeUrl(videoUrl)}" />
   <meta property="og:video:type" content="video/mp4" />
   <meta property="og:video:width" content="1080" />
   <meta property="og:video:height" content="1920" />
-  <meta name="twitter:player" content="${escapeHtml(url)}" />
+  <meta name="twitter:player" content="${escapeUrl(url)}" />
   <meta name="twitter:player:width" content="1080" />
   <meta name="twitter:player:height" content="1920" />
 `;

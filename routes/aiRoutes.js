@@ -7,6 +7,7 @@ const authController = require('../controllers/authController');
 router.post('/chat', aiController.getChatResponse);
 router.post('/deep-brain', aiController.getDeepBrainResponse);
 router.post('/product-guide', aiController.getProductGuideResponse);
+router.post('/trigger-auto-generate', aiController.triggerAutoGenerate);
 
 // Admin Only
 router.post('/generate-bulk-reviews', 

@@ -284,3 +284,26 @@ exports.getDeepBrainResponse = catchAsync(async (req, res, next) => {
     }
 });
 
+// Trigger Auto-Product Generation manual route
+exports.triggerAutoGenerate = catchAsync(async (req, res, next) => {
+    const { generateSingleProduct } = require('../utils/autoProductGenerator');
+    
+    const count = parseInt(req.query.count, 10) || 1;
+    const generated = [];
+    
+    for (let i = 0; i < Math.min(count, 5); i++) {
+        const result = await generateSingleProduct();
+        if (result) {
+            generated.push(result.product);
+        }
+    }
+    
+    res.status(200).json({
+        status: 'success',
+        message: `Successfully generated ${generated.length} products.`,
+        data: {
+            products: generated
+        }
+    });
+});
+

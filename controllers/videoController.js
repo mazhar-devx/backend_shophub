@@ -4,6 +4,7 @@ const AppError = require('../utils/appError');
 
 exports.getAllVideos = catchAsync(async (req, res, next) => {
   let filter = {};
+  const watchedIds = req.query.watched ? req.query.watched.split(',').filter(id => id.trim() !== '') : [];
   
   // If user wants following feed
   if (req.query.feed === 'following' && req.query.userId) {
@@ -44,6 +45,38 @@ exports.getAllVideos = catchAsync(async (req, res, next) => {
     ];
   }
 
+  // Filter by search query (Search title, description, and tags)
+  if (req.query.search) {
+    const searchRegex = new RegExp(req.query.search, 'i');
+    filter.$or = [
+      { name: searchRegex },
+      { description: searchRegex },
+      { tags: searchRegex }
+    ];
+  }
+
+  // Exclude watched/liked videos for 'foryou' or 'following' feed if there are unseen ones
+  if (req.query.sort === 'likes' || req.query.feed === 'following') {
+    const exclusionFilter = { ...filter };
+    
+    // For 'foryou' feed, exclude user's own videos
+    if (req.query.userId && !exclusionFilter.user) {
+      exclusionFilter.user = { $ne: req.query.userId };
+    }
+
+    if (watchedIds.length > 0) {
+      exclusionFilter._id = { $nin: watchedIds };
+    }
+    if (req.query.userId) {
+      exclusionFilter.likes = { $ne: req.query.userId };
+    }
+
+    const count = await Video.countDocuments(exclusionFilter);
+    if (count > 0) {
+      filter = exclusionFilter;
+    }
+  }
+
   let query = Video.find(filter)
     .populate({
       path: 'user',
@@ -60,7 +93,7 @@ exports.getAllVideos = catchAsync(async (req, res, next) => {
 
   // Sort logic
   if (req.query.sort === 'likes') {
-    // For 'foryou' feed, if userId is provided, exclude user's own videos from the DB query
+    // Exclude user's own videos from query if not already done
     if (req.query.userId && !filter.user) {
       filter.user = { $ne: req.query.userId };
     }
@@ -94,14 +127,15 @@ exports.getAllVideos = catchAsync(async (req, res, next) => {
       // We give high priority to likes and comments, and decay score over time
       // Add a significant random boost (0 to 15 points) to ensure freshness on every refresh
       const randomBoost = Math.random() * 15;
-      v.recScore = ((likesCount * 10 + commentsCount * 5 + viewsCount) / Math.pow(ageHours + 2, 1.5)) + randomBoost;
+      
+      // High boost for shopping products (videos with product links)
+      const productLinkBoost = v.productLink ? 30 : 0;
+      
+      v.recScore = ((likesCount * 10 + commentsCount * 5 + viewsCount) / Math.pow(ageHours + 2, 1.5)) + randomBoost + productLinkBoost;
     });
 
     // 3. Sort by recommendation score
     videos.sort((a, b) => b.recScore - a.recScore);
-
-    // Parse watched video IDs from client query (comma-separated)
-    const watchedIds = req.query.watched ? req.query.watched.split(',').filter(id => id.trim() !== '') : [];
 
     let preferredTags = [];
     if (req.query.userId) {
@@ -121,7 +155,7 @@ exports.getAllVideos = catchAsync(async (req, res, next) => {
       }
     }
 
-    // Sort using watched history, likes status, and preferred tags
+    // Sort using watched history, likes status, product link status, and preferred tags
     videos.sort((a, b) => {
       const aLiked = req.query.userId ? a.likes.some(id => id.toString() === req.query.userId) : false;
       const bLiked = req.query.userId ? b.likes.some(id => id.toString() === req.query.userId) : false;
@@ -139,7 +173,14 @@ exports.getAllVideos = catchAsync(async (req, res, next) => {
         return aStatusScore - bStatusScore; 
       }
 
-      // If both have same status (e.g. both unwatched/unliked, or both watched), prioritize preferred tags (similar to user liked tags)
+      // Prioritize product links (shopping videos) to show at the top for new/fresh feeds
+      const aHasProduct = !!a.productLink;
+      const bHasProduct = !!b.productLink;
+      if (aHasProduct !== bHasProduct) {
+        return aHasProduct ? -1 : 1;
+      }
+
+      // If both have same status, prioritize preferred tags (similar to user liked tags)
       const aHasPref = preferredTags.length > 0 && a.tags.some(t => preferredTags.includes(t));
       const bHasPref = preferredTags.length > 0 && b.tags.some(t => preferredTags.includes(t));
 
@@ -156,6 +197,22 @@ exports.getAllVideos = catchAsync(async (req, res, next) => {
     data: {
       videos
     }
+  });
+});
+
+exports.getVideo = catchAsync(async (req, res, next) => {
+  const video = await Video.findById(req.params.id)
+    .populate({ path: 'user', select: 'name photo vendorName followers following' })
+    .populate({ path: 'comments.user', select: 'name photo vendorName' })
+    .populate({ path: 'comments.replies.user', select: 'name photo vendorName' });
+
+  if (!video) {
+    return next(new AppError('No video found with that ID', 404));
+  }
+
+  res.status(200).json({
+    status: 'success',
+    data: { video }
   });
 });
 

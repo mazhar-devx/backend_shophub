@@ -42,6 +42,12 @@ const initDB = async () => {
       await connectDB();
       await ensureAdmin();
       console.log("Database initialized successfully ✅");
+      try {
+        const { startAutoProductGeneration } = require("../utils/autoProductGenerator");
+        startAutoProductGeneration();
+      } catch (err) {
+        console.error("Failed to start auto product generation scheduler:", err.message);
+      }
     } catch (err) {
       console.error("Database initialization failed ❌:", err.message);
       dbPromise = null; // Reset promise so we can try again on next request
@@ -168,6 +174,7 @@ app.use("/api/v1/messages", require("../routes/messageRoutes"));
 app.use("/api/v1/blogs", require("../routes/blogRoutes"));
 app.use("/api/v1/sitemap.xml", require("../routes/sitemapRoutes"));
 app.use("/api/v1/seo", require("../routes/seoRoutes"));
+app.use("/robots.txt", require("../routes/robotsRoutes"));
 
 app.get("/", (req, res) => {
   res.status(200).json({

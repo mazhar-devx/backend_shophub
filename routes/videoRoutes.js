@@ -8,6 +8,7 @@ const router = express.Router();
 // Public routes
 router.get('/', videoController.getAllVideos);
 router.get('/user/:userId', videoController.getUserVideos);
+router.get('/:id', videoController.getVideo);
 
 // Protected routes
 router.use(authController.protect);
