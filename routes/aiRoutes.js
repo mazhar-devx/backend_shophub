@@ -16,4 +16,10 @@ router.post('/generate-bulk-reviews',
     aiController.generateBulkReviews
 );
 
+router.get('/logs',
+    authController.protect,
+    authController.restrictTo('admin'),
+    aiController.getLogs
+);
+
 module.exports = router;

@@ -530,35 +530,29 @@ exports.updateVendorName = async (req, res, next) => {
       });
     }
 
-    let isolatedUser = await User.findOne({ role: 'admin', vendorName: vendorName });
+    const trimmedVendorName = vendorName.trim();
 
-    if (!isolatedUser) {
-        // Create a new isolated sub-admin account
-        isolatedUser = await User.create({
-            name: `Admin - ${vendorName}`,
-            email: `${vendorName.replace(/\s+/g, '').toLowerCase()}_${Date.now()}@admin.shophub.pro`,
-            password: 'password123', // Dummy password, they authenticate via main account first
-            passwordConfirm: 'password123',
-            role: 'admin',
-            vendorName: vendorName,
-            isVerified: true
-        });
+    // Check if another admin already has this vendor name
+    const existing = await User.findOne({
+      role: 'admin',
+      vendorName: trimmedVendorName,
+      _id: { $ne: req.user._id }
+    });
+
+    if (existing) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'This vendor name is already taken. Please choose another unique name.'
+      });
     }
 
-    // Generate a new token for this isolated user
-    const jwt = require('jsonwebtoken');
-    const signToken = id => {
-        return jwt.sign({ id }, process.env.JWT_SECRET, {
-            expiresIn: process.env.JWT_EXPIRES_IN
-        });
-    };
-
-    const token = signToken(isolatedUser._id);
+    // Update current logged-in user directly
+    req.user.vendorName = trimmedVendorName;
+    await req.user.save({ validateBeforeSave: false });
 
     res.status(200).json({
       status: 'success',
-      token,
-      data: { user: isolatedUser }
+      data: { user: req.user }
     });
   } catch (err) {
     res.status(400).json({

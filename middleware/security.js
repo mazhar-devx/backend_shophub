@@ -90,7 +90,8 @@ exports.setSecurityHeaders = helmet({
         "https://*.google.com",
         "https://*.googleusercontent.com",
         "https://*.googlesyndication.com",
-        "https://pagead2.googlesyndication.com"
+        "https://pagead2.googlesyndication.com",
+        "https://*.gstatic.com"
       ],
       styleSrc: [
         "'self'",

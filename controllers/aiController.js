@@ -307,3 +307,18 @@ exports.triggerAutoGenerate = catchAsync(async (req, res, next) => {
     });
 });
 
+// Fetch system logs for admin
+exports.getLogs = catchAsync(async (req, res, next) => {
+    const Log = require('../models/logModel');
+    const logs = await Log.find()
+        .sort('-timestamp')
+        .limit(100);
+        
+    res.status(200).json({
+        status: 'success',
+        data: {
+            logs
+        }
+    });
+});
+

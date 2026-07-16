@@ -159,14 +159,16 @@ const searchUnsplashImages = async (query) => {
 // ─────────────────────────────────────────────────────────
 // Main product generation function
 // ─────────────────────────────────────────────────────────
+const { logEvent } = require('./logger');
+
 const generateSingleProduct = async () => {
   try {
-    console.log('[AutoGenerator] Starting product generation...');
+    await logEvent('info', 'Starting AI automatic product generation...');
 
     // 1. Get default admin user to act as vendor
     const admin = await User.findOne({ role: 'admin' });
     if (!admin) {
-      console.error('[AutoGenerator] No admin user found in database. Aborting product generation.');
+      await logEvent('error', 'Auto-generation aborted: No admin user found in database.');
       return null;
     }
 
@@ -214,7 +216,7 @@ const generateSingleProduct = async () => {
     const groqResponse = await callGroq(systemPrompt, userPrompt);
     const productData = JSON.parse(groqResponse);
 
-    console.log(`[AutoGenerator] AI generated product metadata: "${productData.name}" (${productData.price} PKR)`);
+    await logEvent('info', `AI generated metadata for: "${productData.name}" (${productData.price} PKR)`);
 
     // 4. Fetch matching product images using product-photography-focused queries
     const cat = (productData.category || 'general').toLowerCase();
@@ -267,7 +269,7 @@ const generateSingleProduct = async () => {
 
     // 7. Save Product
     const newProduct = await Product.create(productData);
-    console.log(`[AutoGenerator] Product successfully inserted: ID ${newProduct._id}`);
+    await logEvent('success', `Product successfully created: "${newProduct.name}" (ID: ${newProduct._id})`);
 
     // 8. Create corresponding Watch Me video entry
     const finalTags = Array.from(new Set([
@@ -287,11 +289,11 @@ const generateSingleProduct = async () => {
       productLink: `/product/${newProduct.slug || newProduct._id}`
     });
 
-    console.log(`[AutoGenerator] Corresponding video feed created: ID ${newVideo._id}`);
+    await logEvent('success', `WatchMe video feed entry created: "${newVideo.name}" (ID: ${newVideo._id})`);
 
     return { product: newProduct, video: newVideo };
   } catch (err) {
-    console.error('[AutoGenerator] Error in generateSingleProduct:', err.message);
+    await logEvent('error', `Error in generateSingleProduct: ${err.message}`);
     return null;
   }
 };
