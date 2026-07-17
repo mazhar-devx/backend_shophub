@@ -1,6 +1,9 @@
 const Product = require('../models/productModel');
 const Video = require('../models/videoModel');
 const User = require('../models/userModel');
+const fs = require('fs');
+const fsPromises = require('fs').promises;
+const path = require('path');
 
 // ─────────────────────────────────────────────────────────
 // STOCK VIDEOS — category-matched high-quality loops
@@ -38,6 +41,59 @@ const STOCK_VIDEOS = {
     "https://assets.mixkit.co/videos/preview/mixkit-handholding-creditcard-paying-online-40547-large.mp4",
     "https://assets.mixkit.co/videos/preview/mixkit-unpacking-a-received-parcel-40549-large.mp4"
   ]
+};
+
+// Pexels image search (optional, improves product-image quality)
+const searchPexelsImages = async (query) => {
+  try {
+    const key = process.env.PEXELS_API_KEY;
+    if (!key) return [];
+
+    const url = `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=20&orientation=square`;
+    const res = await fetch(url, { headers: { Authorization: key } });
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (data.photos && data.photos.length) {
+      return data.photos
+        .map(p => p.src && (p.src.large || p.src.medium || p.src.original))
+        .filter(Boolean);
+    }
+    return [];
+  } catch (err) {
+    console.error('[AutoGenerator] Pexels fetch failed:', err.message);
+    return [];
+  }
+};
+
+// Download external image and save to local public/uploads folder
+const BACKEND_BASE = process.env.BACKEND_BASE_URL || process.env.BACKEND_URL || 'https://backend-shophub.vercel.app';
+const UPLOADS_DIR = path.join(__dirname, '..', 'public', 'uploads');
+
+const downloadImageToUploads = async (url) => {
+  try {
+    // Ensure uploads dir exists
+    await fsPromises.mkdir(UPLOADS_DIR, { recursive: true });
+
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Failed to download image');
+
+    const contentType = res.headers.get('content-type') || '';
+    let ext = '.jpg';
+    if (contentType.includes('png')) ext = '.png';
+    else if (contentType.includes('webp')) ext = '.webp';
+    else if (contentType.includes('jpeg')) ext = '.jpg';
+
+    const buffer = await res.arrayBuffer();
+    const filename = `${Date.now()}-${Math.random().toString(36).substring(2,8)}${ext}`;
+    const filepath = path.join(UPLOADS_DIR, filename);
+    await fsPromises.writeFile(filepath, Buffer.from(buffer));
+
+    // Return absolute URL served by backend
+    return `${BACKEND_BASE.replace(/\/$/, '')}/uploads/${filename}`;
+  } catch (err) {
+    console.error('[AutoGenerator] downloadImageToUploads failed for', url, err.message);
+    return null;
+  }
 };
 
 // ─────────────────────────────────────────────────────────
@@ -138,21 +194,53 @@ const callGroq = async (systemPrompt, userPrompt) => {
 // ─────────────────────────────────────────────────────────
 const searchUnsplashImages = async (query) => {
   try {
-    const url = `https://unsplash.com/napi/search/photos?query=${encodeURIComponent(query)}&per_page=8&orientation=squarish`;
+    // Request more results and prefer square-ish product photos
+    const url = `https://unsplash.com/napi/search/photos?query=${encodeURIComponent(query)}&per_page=30&orientation=squarish`;
     const res = await fetch(url, {
       headers: { 'Accept': 'application/json', 'User-Agent': 'ShopHub/1.0' }
     });
     if (!res.ok) return [];
     const data = await res.json();
     if (data.results && data.results.length > 0) {
-      return data.results
+      // Prefer images that come from Unsplash CDN (real photos) and dedupe
+      const urls = data.results
         .filter(img => img.urls && img.urls.regular)
-        .map(img => img.urls.regular);
+        .map(img => img.urls.regular)
+        .filter(u => typeof u === 'string' && u.includes('images.unsplash.com'));
+
+      // Deduplicate while preserving order
+      const seen = new Set();
+      const unique = [];
+      for (const u of urls) {
+        if (!seen.has(u)) {
+          seen.add(u);
+          unique.push(u);
+        }
+      }
+      return unique;
     }
     return [];
   } catch (err) {
     console.error('[AutoGenerator] Unsplash fetch failed:', err.message);
     return [];
+  }
+};
+
+// Fetch all existing product image URLs and video URLs to avoid reuse
+const fetchExistingMediaUrls = async () => {
+  try {
+    const projs = await Product.find().select('image images video');
+    const images = new Set();
+    const videos = new Set();
+    projs.forEach(p => {
+      if (p.image) images.add(p.image);
+      if (Array.isArray(p.images)) p.images.forEach(i => i && images.add(i));
+      if (p.video) videos.add(p.video);
+    });
+    return { images, videos };
+  } catch (err) {
+    console.error('[AutoGenerator] Failed to fetch existing media urls:', err.message);
+    return { images: new Set(), videos: new Set() };
   }
 };
 
@@ -220,18 +308,35 @@ const generateSingleProduct = async () => {
 
     // 4. Fetch matching product images using product-photography-focused queries
     const cat = (productData.category || 'general').toLowerCase();
+    const { images: existingImageSet, videos: existingVideoSet } = await fetchExistingMediaUrls();
     
-    // Tier 1: search by product name + photography suffix
+    // Tier 1: try higher-quality provider (Pexels) if API key present
     const productQuery = buildProductQuery(productData.name, cat);
-    let images = await searchUnsplashImages(productQuery);
-    
-    // Tier 2: fallback to category + product photography suffix
+    let images = [];
+    try {
+      const pexels = await searchPexelsImages(productQuery);
+      images = images.concat(pexels || []);
+    } catch (e) {
+      // ignore
+    }
+
+    // Tier 2: Unsplash fallback
+    if (images.length < 2) {
+      const unsplash = await searchUnsplashImages(productQuery);
+      images = images.concat(unsplash || []);
+    }
+
+    // Tier 3: fallback to category query (both providers)
     if (images.length < 2) {
       const categoryQuery = buildProductQuery(productData.category, cat);
-      const moreImages = await searchUnsplashImages(categoryQuery);
-      images = [...images, ...moreImages];
+      const pexelsCat = await searchPexelsImages(categoryQuery);
+      const unsplashCat = await searchUnsplashImages(categoryQuery);
+      images = images.concat(pexelsCat || [], unsplashCat || []);
     }
-    
+
+    // Filter out images already used in DB
+    images = images.filter(u => !existingImageSet.has(u));
+
     // Tier 3: use curated category-specific fallback images (actual product photos)
     if (images.length === 0) {
       const fallbackKey = cat.includes('elect') ? 'electronics'
@@ -242,11 +347,41 @@ const generateSingleProduct = async () => {
         : cat.includes('beaut') || cat.includes('cosm') ? 'beauty'
         : cat.includes('toy') ? 'toys'
         : 'general';
-      images = FALLBACK_IMAGES_BY_CATEGORY[fallbackKey] || FALLBACK_IMAGES_BY_CATEGORY.general;
+      // Filter fallbacks to avoid ones already used
+      const fallbacks = (FALLBACK_IMAGES_BY_CATEGORY[fallbackKey] || FALLBACK_IMAGES_BY_CATEGORY.general)
+        .filter(u => !existingImageSet.has(u));
+      images = fallbacks.length ? fallbacks : (FALLBACK_IMAGES_BY_CATEGORY[fallbackKey] || FALLBACK_IMAGES_BY_CATEGORY.general);
     }
 
-    productData.image = images[0];
-    productData.images = images.slice(0, 4);
+    // Ensure uniqueness, shuffle and pick a few images
+    const shuffle = arr => arr.sort(() => Math.random() - 0.5);
+    images = shuffle(images);
+    // Ensure we get at least one image (fallbacks guarantee this)
+    const chosen = [];
+    for (const u of images) {
+      if (!chosen.includes(u) && chosen.length < 4) chosen.push(u);
+    }
+
+    // Download chosen external images to local uploads and replace URLs to avoid CSP/public host issues
+    const finalImages = [];
+    for (const srcUrl of chosen) {
+      try {
+        const saved = await downloadImageToUploads(srcUrl);
+        if (saved) finalImages.push(saved);
+      } catch (err) {
+        console.error('Failed to save image locally:', err.message);
+      }
+      if (finalImages.length >= 4) break;
+    }
+
+    // If download failed for all, fallback to original remote URLs (at least ensure something)
+    if (finalImages.length === 0) {
+      productData.images = chosen.length ? chosen : [images[0]];
+      productData.image = productData.images[0];
+    } else {
+      productData.images = finalImages;
+      productData.image = finalImages[0];
+    }
 
     // 5. Select a video based on category
     let videoList = STOCK_VIDEOS.general;
@@ -258,10 +393,23 @@ const generateSingleProduct = async () => {
     else if (cat.includes('beaut') || cat.includes('cosm')) videoList = STOCK_VIDEOS.beauty;
     else if (cat.includes('toy')) videoList = STOCK_VIDEOS.toys;
 
-    // Pick random video from list
-    const mappedVideo = videoList[Math.floor(Math.random() * videoList.length)];
-    productData.video = mappedVideo;
-    productData.posterType = 'video';
+    // Pick a random video from list but avoid ones already used
+    const availableVideos = videoList.filter(v => !existingVideoSet.has(v));
+    let mappedVideo = null;
+    if (availableVideos.length > 0) {
+      mappedVideo = availableVideos[Math.floor(Math.random() * availableVideos.length)];
+    } else if (videoList.length > 0) {
+      // As last resort, pick any (will still avoid DB reuse on future runs)
+      mappedVideo = videoList[Math.floor(Math.random() * videoList.length)];
+    }
+
+    if (mappedVideo) {
+      productData.video = mappedVideo;
+      productData.posterType = 'video';
+    } else {
+      productData.video = null;
+      productData.posterType = 'image';
+    }
 
     // 6. Assign vendor admin
     productData.vendor = admin._id;
@@ -269,7 +417,7 @@ const generateSingleProduct = async () => {
 
     // 7. Save Product
     const newProduct = await Product.create(productData);
-    await logEvent('success', `Product successfully created: "${newProduct.name}" (ID: ${newProduct._id})`);
+    await logEvent('success', `Product successfully created: "${newProduct.name}" (ID: ${newProduct._id}) at ${newProduct.createdAt.toISOString()}`);
 
     // 8. Create corresponding Watch Me video entry
     const finalTags = Array.from(new Set([
