@@ -72,6 +72,11 @@ const UPLOADS_DIR = path.join(__dirname, '..', 'public', 'uploads');
 
 const downloadImageToUploads = async (url) => {
   try {
+    // In serverless environments (Vercel), writing to project directories may be restricted.
+    // If running on Vercel or if DISABLE_IMAGE_DOWNLOAD is set, skip download and return original URL.
+    if (process.env.VERCEL === '1' || process.env.DISABLE_IMAGE_DOWNLOAD === 'true') {
+      return url;
+    }
     // Ensure uploads dir exists
     await fsPromises.mkdir(UPLOADS_DIR, { recursive: true });
 
