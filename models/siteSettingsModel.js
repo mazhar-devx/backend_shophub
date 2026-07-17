@@ -49,6 +49,12 @@ const siteSettingsSchema = new mongoose.Schema({
         productUrl: { type: String, default: '' },
         endTime: { type: Date, default: () => new Date(Date.now() + 24 * 60 * 60 * 1000) }
     }
+    ,
+    // AI Auto Product Generation control
+    autoProductGeneration: {
+        enabled: { type: Boolean, default: false },
+        intervalHours: { type: Number, default: 1 }
+    }
 }, { timestamps: true });
 
 // We only want one document, so we can make it a singleton conceptually

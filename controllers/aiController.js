@@ -22,6 +22,48 @@ const callGroq = async (messages) => {
         })
     });
 
+// Auto-generator control endpoints
+exports.getAutoGeneratorStatus = catchAsync(async (req, res, next) => {
+    const SiteSettings = require('../models/siteSettingsModel');
+    let settings = await SiteSettings.findOne();
+    if (!settings) settings = await SiteSettings.create({});
+
+    res.status(200).json({ status: 'success', data: { enabled: !!settings.autoProductGeneration?.enabled, intervalHours: settings.autoProductGeneration?.intervalHours || 1 } });
+});
+
+exports.enableAutoGenerator = catchAsync(async (req, res, next) => {
+    const SiteSettings = require('../models/siteSettingsModel');
+    let settings = await SiteSettings.findOne();
+    if (!settings) settings = await SiteSettings.create({});
+
+    settings.autoProductGeneration.enabled = true;
+    settings.autoProductGeneration.intervalHours = req.body.intervalHours || settings.autoProductGeneration.intervalHours || 1;
+    await settings.save();
+
+    const { startAutoProductGeneration } = require('../utils/autoProductGenerator');
+    startAutoProductGeneration(settings.autoProductGeneration.intervalHours);
+
+    await logEvent('success', `Auto product generation ENABLED (every ${settings.autoProductGeneration.intervalHours} hour(s))`);
+
+    res.status(200).json({ status: 'success', message: 'Auto product generation enabled', data: { enabled: true } });
+});
+
+exports.disableAutoGenerator = catchAsync(async (req, res, next) => {
+    const SiteSettings = require('../models/siteSettingsModel');
+    let settings = await SiteSettings.findOne();
+    if (!settings) settings = await SiteSettings.create({});
+
+    settings.autoProductGeneration.enabled = false;
+    await settings.save();
+
+    const { stopAutoProductGeneration } = require('../utils/autoProductGenerator');
+    stopAutoProductGeneration();
+
+    await logEvent('success', 'Auto product generation DISABLED');
+
+    res.status(200).json({ status: 'success', message: 'Auto product generation disabled', data: { enabled: false } });
+});
+
     const data = await response.json();
     if (!response.ok) {
         throw new Error(data.error?.message || "Groq API error");

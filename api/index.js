@@ -43,8 +43,15 @@ const initDB = async () => {
       await ensureAdmin();
       console.log("Database initialized successfully ✅");
       try {
-        const { startAutoProductGeneration } = require("../utils/autoProductGenerator");
-        startAutoProductGeneration();
+        const SiteSettings = require('../models/siteSettingsModel');
+        const settings = await SiteSettings.findOne();
+        if (settings && settings.autoProductGeneration && settings.autoProductGeneration.enabled) {
+          const { startAutoProductGeneration } = require("../utils/autoProductGenerator");
+          startAutoProductGeneration(settings.autoProductGeneration.intervalHours || 1);
+          console.log('[Init] Auto product generation scheduler started from settings.');
+        } else {
+          console.log('[Init] Auto product generation disabled by settings.');
+        }
       } catch (err) {
         console.error("Failed to start auto product generation scheduler:", err.message);
       }

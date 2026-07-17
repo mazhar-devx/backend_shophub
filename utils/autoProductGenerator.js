@@ -1,4 +1,5 @@
 const Product = require('../models/productModel');
+const Product = require('../models/productModel');
 const Video = require('../models/videoModel');
 const User = require('../models/userModel');
 const fs = require('fs');
@@ -189,42 +190,7 @@ const callGroq = async (systemPrompt, userPrompt) => {
   return data.choices[0].message.content;
 };
 
-// ─────────────────────────────────────────────────────────
-// Image search — Unsplash with product-focused query
-// ─────────────────────────────────────────────────────────
-const searchUnsplashImages = async (query) => {
-  try {
-    // Request more results and prefer square-ish product photos
-    const url = `https://unsplash.com/napi/search/photos?query=${encodeURIComponent(query)}&per_page=30&orientation=squarish`;
-    const res = await fetch(url, {
-      headers: { 'Accept': 'application/json', 'User-Agent': 'ShopHub/1.0' }
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    if (data.results && data.results.length > 0) {
-      // Prefer images that come from Unsplash CDN (real photos) and dedupe
-      const urls = data.results
-        .filter(img => img.urls && img.urls.regular)
-        .map(img => img.urls.regular)
-        .filter(u => typeof u === 'string' && u.includes('images.unsplash.com'));
-
-      // Deduplicate while preserving order
-      const seen = new Set();
-      const unique = [];
-      for (const u of urls) {
-        if (!seen.has(u)) {
-          seen.add(u);
-          unique.push(u);
-        }
-      }
-      return unique;
-    }
-    return [];
-  } catch (err) {
-    console.error('[AutoGenerator] Unsplash fetch failed:', err.message);
-    return [];
-  }
-};
+// NOTE: We intentionally avoid Unsplash now. We only use Pexels + curated fallbacks.
 
 // Fetch all existing product image URLs and video URLs to avoid reuse
 const fetchExistingMediaUrls = async () => {
@@ -450,21 +416,19 @@ const generateSingleProduct = async () => {
 // Hourly scheduler
 // ─────────────────────────────────────────────────────────
 let autoGenInterval = null;
-
-const startAutoProductGeneration = () => {
+const startAutoProductGeneration = (intervalHours = 1) => {
   if (autoGenInterval) {
     console.log('[AutoGenerator] Scheduler is already running.');
     return;
   }
 
-  console.log('[AutoGenerator] Initializing scheduler... (adding 1 or 2 products every 1 hour)');
+  const intervalMs = Math.max(0.1, intervalHours) * 60 * 60 * 1000; // allow 0.1 hour for testing
+  console.log(`[AutoGenerator] Initializing scheduler... (adding 1 or 2 products every ${intervalHours} hour(s))`);
 
-  // Run every 1 hour (3600000 ms)
   autoGenInterval = setInterval(async () => {
     try {
-      console.log('[AutoGenerator] Running hourly generation job...');
+      console.log('[AutoGenerator] Running scheduled generation job...');
       const count = Math.random() > 0.5 ? 2 : 1;
-      
       for (let i = 0; i < count; i++) {
         console.log(`[AutoGenerator] Generating product ${i + 1} of ${count}...`);
         await generateSingleProduct();
@@ -472,10 +436,21 @@ const startAutoProductGeneration = () => {
     } catch (err) {
       console.error('[AutoGenerator] Interval job execution failed:', err.message);
     }
-  }, 60 * 60 * 1000);
+  }, intervalMs);
 };
+
+const stopAutoProductGeneration = () => {
+  if (!autoGenInterval) return;
+  clearInterval(autoGenInterval);
+  autoGenInterval = null;
+  console.log('[AutoGenerator] Scheduler stopped.');
+};
+
+const isAutoProductGenerationRunning = () => !!autoGenInterval;
 
 module.exports = {
   generateSingleProduct,
-  startAutoProductGeneration
+  startAutoProductGeneration,
+  stopAutoProductGeneration,
+  isAutoProductGenerationRunning
 };
