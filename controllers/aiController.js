@@ -1,73 +1,27 @@
 const Product = require('../models/productModel');
 
-const catchAsync = (fn) => {
-    return (req, res, next) => {
-        fn(req, res, next).catch(next);
-    };
-};
+const Product = require('../models/productModel');
+const { logEvent } = require('../utils/logger');
 
-// Helper for Groq API
-const callGroq = async (messages) => {
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
+const catchAsync = (fn) => (req, res, next) => fn(req, res, next).catch(next);
+
+// Generic Groq API caller. Accepts either (messagesArray) or (systemPrompt, userPrompt)
+const callGroq = async (...args) => {
+    let messages = [];
+    if (Array.isArray(args[0])) messages = args[0];
+    else messages = [{ role: 'system', content: args[0] }, { role: 'user', content: args[1] }];
+
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
         headers: {
-            "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
-            "Content-Type": "application/json"
+            Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+            'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-            model: "llama-3.3-70b-versatile",
-            messages: messages,
-            temperature: 0.7,
-            max_tokens: 1024
-        })
+        body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages, temperature: 0.7, max_tokens: 1024 })
     });
 
-// Auto-generator control endpoints
-exports.getAutoGeneratorStatus = catchAsync(async (req, res, next) => {
-    const SiteSettings = require('../models/siteSettingsModel');
-    let settings = await SiteSettings.findOne();
-    if (!settings) settings = await SiteSettings.create({});
-
-    res.status(200).json({ status: 'success', data: { enabled: !!settings.autoProductGeneration?.enabled, intervalHours: settings.autoProductGeneration?.intervalHours || 1 } });
-});
-
-exports.enableAutoGenerator = catchAsync(async (req, res, next) => {
-    const SiteSettings = require('../models/siteSettingsModel');
-    let settings = await SiteSettings.findOne();
-    if (!settings) settings = await SiteSettings.create({});
-
-    settings.autoProductGeneration.enabled = true;
-    settings.autoProductGeneration.intervalHours = req.body.intervalHours || settings.autoProductGeneration.intervalHours || 1;
-    await settings.save();
-
-    const { startAutoProductGeneration } = require('../utils/autoProductGenerator');
-    startAutoProductGeneration(settings.autoProductGeneration.intervalHours);
-
-    await logEvent('success', `Auto product generation ENABLED (every ${settings.autoProductGeneration.intervalHours} hour(s))`);
-
-    res.status(200).json({ status: 'success', message: 'Auto product generation enabled', data: { enabled: true } });
-});
-
-exports.disableAutoGenerator = catchAsync(async (req, res, next) => {
-    const SiteSettings = require('../models/siteSettingsModel');
-    let settings = await SiteSettings.findOne();
-    if (!settings) settings = await SiteSettings.create({});
-
-    settings.autoProductGeneration.enabled = false;
-    await settings.save();
-
-    const { stopAutoProductGeneration } = require('../utils/autoProductGenerator');
-    stopAutoProductGeneration();
-
-    await logEvent('success', 'Auto product generation DISABLED');
-
-    res.status(200).json({ status: 'success', message: 'Auto product generation disabled', data: { enabled: false } });
-});
-
     const data = await response.json();
-    if (!response.ok) {
-        throw new Error(data.error?.message || "Groq API error");
-    }
+    if (!response.ok) throw new Error(data.error?.message || 'Groq API error');
     return data.choices[0].message.content;
 };
 
