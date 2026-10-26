@@ -76,6 +76,43 @@ const getIndexTemplate = async () => {
   }
 };
 
+// Construct pre-rendered 404 response for deleted or non-existent resources
+function renderNotFoundHtml(templateHtml, resourceType, queryId) {
+  let cleanedHtml = templateHtml
+    .replace(/<title>[\s\S]*?<\/title>/gi, '')
+    .replace(/<meta\s+[^>]*name="description"[^>]*>/gi, '')
+    .replace(/<meta\s+[^>]*name="keywords"[^>]*>/gi, '')
+    .replace(/<link\s+[^>]*rel="canonical"[^>]*>/gi, '')
+    .replace(/<meta\s+[^>]*property="og:(title|description|url|image|type|site_name)"[^>]*>/gi, '')
+    .replace(/<meta\s+[^>]*property="twitter:(card|title|description|url|image)"[^>]*>/gi, '');
+
+  const notFoundTitle = `${resourceType} Not Found (404) | ShopHub`;
+  const notFoundDesc = `The requested ${resourceType.toLowerCase()} is not available or has been removed from ShopHub.pro.`;
+
+  const seoTags = `
+  <title>${escapeHtml(notFoundTitle)}</title>
+  <meta name="description" content="${escapeHtml(notFoundDesc)}">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="googlebot" content="noindex, nofollow">
+`;
+
+  const bodyContent = `
+    <article style="padding: 60px 20px; max-width: 600px; margin: 0 auto; font-family: system-ui, -apple-system, sans-serif; text-align: center;">
+      <h1 style="font-size: 3.5rem; margin-bottom: 8px; font-weight: 900; color: #111;">404</h1>
+      <h2 style="font-size: 1.5rem; margin-bottom: 16px; color: #333;">${escapeHtml(resourceType)} Not Found</h2>
+      <p style="color: #666; line-height: 1.6; margin-bottom: 24px;">The ${escapeHtml(resourceType.toLowerCase())} you are looking for (${escapeHtml(queryId || '')}) does not exist, has been removed, or is temporarily unavailable.</p>
+      <div style="display: flex; justify-content: center; gap: 12px; flex-wrap: wrap;">
+        <a href="https://www.shophub.pro" style="display: inline-block; padding: 12px 24px; background: #06b6d4; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">Return Home</a>
+        <a href="https://www.shophub.pro/products" style="display: inline-block; padding: 12px 24px; background: #f3f4f6; color: #333; text-decoration: none; border-radius: 8px; font-weight: bold;">Browse Catalog</a>
+        <a href="https://www.shophub.pro/categories" style="display: inline-block; padding: 12px 24px; background: #f3f4f6; color: #333; text-decoration: none; border-radius: 8px; font-weight: bold;">All Categories</a>
+      </div>
+    </article>`;
+
+  let finalHtml = cleanedHtml.replace(/<head>/i, `<head>\n${seoTags}`);
+  finalHtml = finalHtml.replace(/<div id="root"><\/div>/i, `<div id="root">${bodyContent}</div>`);
+  return finalHtml;
+}
+
 router.get('/', async (req, res) => {
   const { type, id, slug } = req.query;
 
@@ -93,7 +130,46 @@ router.get('/', async (req, res) => {
   let twitterCard = 'summary_large_image';
   let videoUrl = null;
   let keywords = 'shophub, online shopping pakistan, luxury shopping, buy online pakistan, ecommerce pakistan';
+  let robotsMeta = 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
   const schemas = [];
+
+  const CURATED_GUIDES_MAP = {
+    'pakistan-online-shopping-safety-guide': {
+      title: 'The Ultimate Guide to Safe Online Shopping in Pakistan | ShopHub Journal',
+      description: 'Learn how to shop online with total confidence across Pakistan. Understand Cash on Delivery (COD), parcel inspection, courier tracking (TCS, Leopards, Trax), and checking warranties.',
+      image: 'https://images.unsplash.com/photo-1556742049-0a67c5574f73?w=1200&auto=format&fit=crop&q=80',
+      date: '2026-03-15T10:00:00.000Z',
+      author: 'ShopHub Editorial Team'
+    },
+    'best-smartwatches-under-10000-pakistan': {
+      title: 'Best Smartwatches & Fitness Trackers Under PKR 10,000 in Pakistan | ShopHub Journal',
+      description: 'Best smartwatches under 10,000 PKR in Pakistan. Comprehensive review of AMOLED displays, Bluetooth calling, Urdu notifications, battery life, and durability for budget wearables.',
+      image: 'https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?w=1200&auto=format&fit=crop&q=80',
+      date: '2026-03-20T10:00:00.000Z',
+      author: 'ShopHub Tech Lab'
+    },
+    'budget-gaming-peripherals-pakistan-guide': {
+      title: 'Budget Gaming Setup in Pakistan: Mechanical Keyboards, Headsets & Mice Under PKR 15,000 | ShopHub Journal',
+      description: 'Budget gaming setup in Pakistan under 15,000 PKR. Guide to mechanical keyboards (Blue vs Red switches), PixArt sensor gaming mice, and 7.1 surround headsets.',
+      image: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=1200&auto=format&fit=crop&q=80',
+      date: '2026-03-25T10:00:00.000Z',
+      author: 'ShopHub Gaming Desk'
+    },
+    'pta-mobile-verification-imei-tax-guide': {
+      title: 'PTA Mobile Verification & IMEI Check Guide | ShopHub Journal',
+      description: 'Step-by-step guide to PTA mobile IMEI verification in Pakistan. Learn how to verify phones via 8484 SMS or DIRBS portal, understand PTA approved vs CPID phones, and protect your tech purchase.',
+      image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=1200&auto=format&fit=crop&q=80',
+      date: '2026-04-02T10:00:00.000Z',
+      author: 'ShopHub Compliance Desk'
+    },
+    'pakistan-summer-winter-fabric-lifestyle-guide': {
+      title: 'Men & Women Fashion & Fabric Guide Pakistan | ShopHub Journal',
+      description: 'Comprehensive guide to Pakistani fashion fabrics: Cotton, Linen, Wash & Wear, Lawn, and Khaddar. Sizing advice and fabric maintenance for Pakistani weather.',
+      image: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=1200&auto=format&fit=crop&q=80',
+      date: '2026-04-10T10:00:00.000Z',
+      author: 'ShopHub Style Editors'
+    }
+  };
 
   // Default BreadcrumbList (always present)
   schemas.push({
@@ -123,75 +199,91 @@ router.get('/', async (req, res) => {
         product = await Product.findOne({ slug: queryId });
       }
 
-      if (product) {
-        // Amazon-style keyword-focused Title
-        title = `Buy ${product.name} Online at Best Price in Pakistan | ShopHub`;
-        
-        // Amazon-style high-CTR Meta Description
-        const finalPrice = product.discountPercentage > 0 
-          ? product.price * (1 - product.discountPercentage / 100) 
-          : product.price;
-        description = `Shop online for ${product.name} in Pakistan. Brand: ${product.brand || 'ShopHub'}. Category: ${product.category}. Price: PKR ${finalPrice}. ${product.description.substring(0, 120)}... Enjoy 24h delivery, premium quality, and secure checkout.`;
-        
-        url = `${baseUrl}/product/${product.slug || product._id}`;
-        
-        image = getProductImageUrl(product.images?.[0] || product.image, backendBaseUrl);
-        pageType = 'og:product';
-
-        // Product-specific keywords from AI-generated tags
-        if (product.tags && product.tags.length > 0) {
-          keywords = [...product.tags, product.brand || 'ShopHub', product.category, 'buy online pakistan', 'shophub'].join(', ');
-        } else {
-          keywords = `${product.name}, ${product.brand || 'ShopHub'}, ${product.category}, buy ${product.category} online pakistan, shophub`;
-        }
-
-        // Product breadcrumb schema
-        schemas[0].itemListElement.push(
-          { "@type": "ListItem", "position": 2, "name": escapeHtml(product.category), "item": `${baseUrl}/products?category=${product.category}` },
-          { "@type": "ListItem", "position": 3, "name": escapeHtml(product.name), "item": url }
-        );
-
-        // Add ultra-rich Amazon-level Product Schema
-        const productSchemaJson = {
-          "@context": "https://schema.org",
-          "@type": "Product",
-          "name": product.name,
-          "image": (product.images?.length ? product.images : [product.image]).filter(Boolean).map(img => getProductImageUrl(img, backendBaseUrl)),
-          "description": product.description.substring(0, 300),
-          "sku": product._id.toString(),
-          "mpn": product._id.toString(),
-          "brand": {
-            "@type": "Brand",
-            "name": product.brand || "ShopHub"
-          },
-          "category": product.category,
-          "offers": {
-            "@type": "Offer",
-            "url": url,
-            "priceCurrency": product.currency || "PKR",
-            "price": finalPrice,
-            "priceValidUntil": new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            "availability": product.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-            "itemCondition": "https://schema.org/NewCondition"
-          }
-        };
-
-        if (product.ratingsQuantity > 0) {
-          productSchemaJson.aggregateRating = {
-            "@type": "AggregateRating",
-            "ratingValue": product.ratingsAverage,
-            "reviewCount": product.ratingsQuantity,
-            "bestRating": 5,
-            "worstRating": 1
-          };
-        }
-
-        schemas.push(productSchemaJson);
+      if (!product) {
+        const notFoundHtml = renderNotFoundHtml(templateHtml, 'Product', queryId);
+        res.setHeader('Content-Type', 'text/html');
+        return res.status(404).send(notFoundHtml);
       }
+
+      // Canonical 301 Permanent Redirect if accessed via ObjectId when slug exists
+      if (product.slug && queryId !== product.slug) {
+        return res.redirect(301, `${baseUrl}/product/${product.slug}`);
+      }
+
+      // Keyword-focused natural Title
+      title = `Buy ${product.name} Online at Best Price in Pakistan | ShopHub`;
+      
+      // High-CTR Meta Description
+      const finalPrice = product.discountPercentage > 0 
+        ? product.price * (1 - product.discountPercentage / 100) 
+        : product.price;
+      description = `Shop online for ${product.name} in Pakistan. Brand: ${product.brand || 'ShopHub'}. Category: ${product.category}. Price: PKR ${finalPrice}. ${product.description.substring(0, 120)}... Enjoy 24h delivery, premium quality, and secure checkout.`;
+      
+      url = `${baseUrl}/product/${product.slug || product._id}`;
+      
+      image = getProductImageUrl(product.images?.[0] || product.image, backendBaseUrl);
+      pageType = 'og:product';
+
+      // Product-specific keywords
+      if (product.tags && product.tags.length > 0) {
+        keywords = [...product.tags, product.brand || 'ShopHub', product.category, 'ShopHub'].join(', ');
+      } else {
+        keywords = `${product.name}, ${product.brand || 'ShopHub'}, ${product.category}, ShopHub`;
+      }
+
+      // Product breadcrumb schema
+      schemas[0].itemListElement.push(
+        { "@type": "ListItem", "position": 2, "name": escapeHtml(product.category), "item": `${baseUrl}/products` },
+        { "@type": "ListItem", "position": 3, "name": escapeHtml(product.name), "item": url }
+      );
+
+      // Product Schema
+      const productSchemaJson = {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": product.name,
+        "image": (product.images?.length ? product.images : [product.image]).filter(Boolean).map(img => getProductImageUrl(img, backendBaseUrl)),
+        "description": product.description.substring(0, 300),
+        "sku": product._id.toString(),
+        "mpn": product._id.toString(),
+        "brand": {
+          "@type": "Brand",
+          "name": product.brand || "ShopHub"
+        },
+        "category": product.category,
+        "offers": {
+          "@type": "Offer",
+          "url": url,
+          "priceCurrency": product.currency || "PKR",
+          "price": finalPrice,
+          "priceValidUntil": new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          "availability": product.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+          "itemCondition": "https://schema.org/NewCondition"
+        }
+      };
+
+      if (product.ratingsQuantity > 0) {
+        productSchemaJson.aggregateRating = {
+          "@type": "AggregateRating",
+          "ratingValue": product.ratingsAverage,
+          "reviewCount": product.ratingsQuantity,
+          "bestRating": 5,
+          "worstRating": 1
+        };
+      }
+
+      schemas.push(productSchemaJson);
+
     } else if (type === 'video') {
       const videoId = req.query.v || queryId;
       if (videoId && mongoose.Types.ObjectId.isValid(videoId)) {
         video = await Video.findById(videoId).populate('user', 'name vendorName photo');
+      }
+
+      if (videoId && !video) {
+        const notFoundHtml = renderNotFoundHtml(templateHtml, 'Video', videoId);
+        res.setHeader('Content-Type', 'text/html');
+        return res.status(404).send(notFoundHtml);
       }
 
       if (video) {
@@ -211,7 +303,6 @@ router.get('/', async (req, res) => {
         pageType = 'video.other';
         twitterCard = 'player';
 
-        // Add VideoObject Structured Data schema
         schemas.push({
           "@context": "https://schema.org",
           "@type": "VideoObject",
@@ -228,28 +319,61 @@ router.get('/', async (req, res) => {
           }
         });
       } else {
-        // Fallback for general Watch Me page
         title = "Watch Me - Social Short Video Shopping | ShopHub";
         description = "Experience immersive video shopping in Pakistan. Watch product reviews, styling tips, and purchase instantly on ShopHub.";
         url = `${baseUrl}/watch-me`;
       }
     } else if (type === 'blog' && queryId) {
-      if (mongoose.Types.ObjectId.isValid(queryId)) {
-        blog = await Blog.findById(queryId);
-      }
-      if (!blog) {
-        blog = await Blog.findOne({ slug: queryId });
-      }
+      if (CURATED_GUIDES_MAP[queryId]) {
+        const guide = CURATED_GUIDES_MAP[queryId];
+        title = guide.title;
+        description = guide.description;
+        url = `${baseUrl}/blog/${queryId}`;
+        image = guide.image;
+        pageType = 'article';
+        schemas.push({
+          "@context": "https://schema.org",
+          "@type": "BlogPosting",
+          "headline": guide.title,
+          "image": image,
+          "datePublished": guide.date,
+          "dateModified": guide.date,
+          "author": {
+            "@type": "Person",
+            "name": guide.author || "ShopHub Editorial Team"
+          },
+          "description": description
+        });
+      } else {
+        if (mongoose.Types.ObjectId.isValid(queryId)) {
+          blog = await Blog.findById(queryId);
+        }
+        if (!blog) {
+          blog = await Blog.findOne({ slug: queryId });
+        }
 
-      if (blog && blog.isPublished) {
-        title = `${blog.title} | ShopHub Blog`;
+        if (!blog || !blog.isPublished) {
+          const notFoundHtml = renderNotFoundHtml(templateHtml, 'Article', queryId);
+          res.setHeader('Content-Type', 'text/html');
+          return res.status(404).send(notFoundHtml);
+        }
+
+        // Canonical 301 Permanent Redirect if accessed via ObjectId when slug exists
+        if (blog.slug && queryId !== blog.slug) {
+          return res.redirect(301, `${baseUrl}/blog/${blog.slug}`);
+        }
+
+        title = `${blog.title} | ShopHub Journal`;
         description = blog.seoDescription || blog.content.substring(0, 160);
         url = `${baseUrl}/blog/${blog.slug || blog._id}`;
         
         image = getProductImageUrl(blog.image, backendBaseUrl);
         pageType = 'article';
 
-        // Add BlogPosting Structured Data schema
+        if (blog.category === 'Product Spotlight') {
+          robotsMeta = 'noindex, follow';
+        }
+
         schemas.push({
           "@context": "https://schema.org",
           "@type": "BlogPosting",
@@ -259,37 +383,41 @@ router.get('/', async (req, res) => {
           "dateModified": blog.updatedAt || new Date().toISOString(),
           "author": {
             "@type": "Person",
-            "name": blog.author || "ShopHub Admin"
+            "name": blog.author || "ShopHub Editorial"
           },
           "description": description
         });
       }
+
     } else if (type === 'creator' && queryId) {
       if (mongoose.Types.ObjectId.isValid(queryId)) {
         creator = await User.findById(queryId);
       }
 
-      if (creator) {
-        const cName = creator.vendorName || creator.name;
-        title = `${cName} on ShopHub - Profile and Videos`;
-        description = `Check out products, short videos, and fashion styles from ${cName} on ShopHub.pro.`;
-        url = `${baseUrl}/creator/${creator._id}`;
-        
-        image = getProductImageUrl(creator.photo || 'default.jpg', backendBaseUrl);
-        pageType = 'profile';
-
-        // Profile Schema
-        schemas.push({
-          "@context": "https://schema.org",
-          "@type": "ProfilePage",
-          "mainEntity": {
-            "@type": "Person",
-            "name": cName,
-            "image": image,
-            "identifier": creator._id.toString()
-          }
-        });
+      if (!creator) {
+        const notFoundHtml = renderNotFoundHtml(templateHtml, 'Creator', queryId);
+        res.setHeader('Content-Type', 'text/html');
+        return res.status(404).send(notFoundHtml);
       }
+
+      const cName = creator.vendorName || creator.name;
+      title = `${cName} on ShopHub - Profile and Videos`;
+      description = `Check out products, short videos, and fashion styles from ${cName} on ShopHub.pro.`;
+      url = `${baseUrl}/creator/${creator._id}`;
+      
+      image = getProductImageUrl(creator.photo || 'default.jpg', backendBaseUrl);
+      pageType = 'profile';
+
+      schemas.push({
+        "@context": "https://schema.org",
+        "@type": "ProfilePage",
+        "mainEntity": {
+          "@type": "Person",
+          "name": cName,
+          "image": image,
+          "identifier": creator._id.toString()
+        }
+      });
     }
 
     // Clean existing meta/title/canonical/og/twitter tags from template
@@ -306,7 +434,7 @@ router.get('/', async (req, res) => {
   <title>${escapeHtml(title)}</title>
   <meta name="description" content="${escapeHtml(description)}">
   <meta name="keywords" content="${escapeHtml(keywords)}">
-  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+  <meta name="robots" content="${escapeHtml(robotsMeta)}">
   <link rel="canonical" href="${escapeUrl(url)}">
   <meta property="og:type" content="${escapeHtml(pageType)}">
   <meta property="og:url" content="${escapeUrl(url)}">
